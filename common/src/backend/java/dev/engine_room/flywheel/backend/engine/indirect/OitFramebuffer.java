@@ -4,7 +4,7 @@ import org.lwjgl.opengl.GL32;
 import org.lwjgl.opengl.GL46;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.engine_room.flywheel.backend.NoiseTextures;
