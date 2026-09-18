@@ -15,7 +15,7 @@ import dev.engine_room.vanillin.item.ItemModels;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.resources.model.ModelManager;
-import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.client.resources.model.ModelIdentifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -27,12 +27,12 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.LightLayer;
 
 public class ItemFrameVisual extends AbstractVisual implements EntityVisual<ItemFrame>, SimpleDynamicVisual {
-	private static final ModelResourceLocation FRAME_LOCATION = ModelResourceLocation.vanilla("item_frame", "map=false");
-	private static final ModelResourceLocation MAP_FRAME_LOCATION = ModelResourceLocation.vanilla("item_frame", "map=true");
-	private static final ModelResourceLocation GLOW_FRAME_LOCATION = ModelResourceLocation.vanilla("glow_item_frame", "map=false");
-	private static final ModelResourceLocation GLOW_MAP_FRAME_LOCATION = ModelResourceLocation.vanilla("glow_item_frame", "map=true");
+	private static final ModelIdentifier FRAME_LOCATION = ModelIdentifier.vanilla("item_frame", "map=false");
+	private static final ModelIdentifier MAP_FRAME_LOCATION = ModelIdentifier.vanilla("item_frame", "map=true");
+	private static final ModelIdentifier GLOW_FRAME_LOCATION = ModelIdentifier.vanilla("glow_item_frame", "map=false");
+	private static final ModelIdentifier GLOW_MAP_FRAME_LOCATION = ModelIdentifier.vanilla("glow_item_frame", "map=true");
 
-	public static final RendererReloadCache<ModelResourceLocation, Model> MODEL_RESOURCE_LOCATION = new RendererReloadCache<>(mrl -> {
+	public static final RendererReloadCache<ModelIdentifier, Model> MODEL_RESOURCE_LOCATION = new RendererReloadCache<>(mrl -> {
 		ModelManager modelManager = Minecraft.getInstance()
 				.getModelManager()
 				.getBlockModelShaper()
@@ -47,7 +47,7 @@ public class ItemFrameVisual extends AbstractVisual implements EntityVisual<Item
 	private final TransformedInstance frame;
 	private final TransformedInstance item;
 	private final ItemFrame entity;
-	private ModelResourceLocation lastFrameLocation;
+	private ModelIdentifier lastFrameLocation;
 	private ItemStack lastItemStack;
 
 	public ItemFrameVisual(VisualizationContext ctx, ItemFrame entity, float partialTick) {
@@ -171,7 +171,7 @@ public class ItemFrameVisual extends AbstractVisual implements EntityVisual<Item
 		return entity.getType() == EntityType.GLOW_ITEM_FRAME ? Math.max(5, getBlockLightLevelBase(pos)) : getBlockLightLevelBase(pos);
 	}
 
-	public static ModelResourceLocation getFrameModelResourceLoc(ItemFrame entity, ItemStack item) {
+	public static ModelIdentifier getFrameModelResourceLoc(ItemFrame entity, ItemStack item) {
 		boolean bl = entity.getType() == EntityType.GLOW_ITEM_FRAME;
 		if (item.is(Items.FILLED_MAP)) {
 			return bl ? GLOW_MAP_FRAME_LOCATION : MAP_FRAME_LOCATION;

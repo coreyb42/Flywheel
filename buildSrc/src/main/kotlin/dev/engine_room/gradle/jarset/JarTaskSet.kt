@@ -27,8 +27,8 @@ class JarTaskSet(
     val jar: TaskProvider<Jar>,
     val sources: TaskProvider<Jar>,
     val javadocJar: TaskProvider<Jar>,
-    val remapJar: TaskProvider<RemapJarTask>,
-    val remapSources: TaskProvider<RemapSourcesJarTask>
+    val remapJar: TaskProvider<out Jar>,
+    val remapSources: TaskProvider<out Jar>
 ) {
 
     fun publishWithRawSources(action: Action<MavenPublication>): NamedDomainObjectProvider<MavenPublication> {
@@ -87,8 +87,12 @@ class JarTaskSet(
      * Configure the remap tasks with the given action.
      */
     fun configureRemap(action: Action<AbstractRemapJarTask>) {
-        remapJar.configure(action)
-        remapSources.configure(action)
+        remapJar.configure {
+            if (this is AbstractRemapJarTask) action.execute(this)
+        }
+        remapSources.configure {
+            if (this is AbstractRemapJarTask) action.execute(this)
+        }
     }
 
     /**
@@ -103,6 +107,10 @@ class JarTaskSet(
      * Create a new JarTaskSet with the same base jars but new tasks for remapping.
      */
     fun forkRemap(newName: String): JarTaskSet {
+        if (isUnobfuscated(project)) {
+            return JarTaskSet(project, newName, jar, sources, javadocJar, jar, sources)
+        }
+
         val remapJarTask = createRemapJar(project, newName, jar)
         val remapSourcesTask = createRemapSourcesJar(project, newName, sources)
 
@@ -138,11 +146,21 @@ class JarTaskSet(
             val sourcesTask = createSourcesJar(project, name, sourceSetSet)
             val javadocJarTask = createJavadocJar(project, name, sourceSetSet)
 
-            val remapJarTask = createRemapJar(project, name, jarTask)
-            val remapSourcesTask = createRemapSourcesJar(project, name, sourcesTask)
+            val remapJarTask: TaskProvider<out Jar>
+            val remapSourcesTask: TaskProvider<out Jar>
+            if (isUnobfuscated(project)) {
+                remapJarTask = jarTask
+                remapSourcesTask = sourcesTask
+            } else {
+                remapJarTask = createRemapJar(project, name, jarTask)
+                remapSourcesTask = createRemapSourcesJar(project, name, sourcesTask)
+            }
 
             return JarTaskSet(project, name, jarTask, sourcesTask, javadocJarTask, remapJarTask, remapSourcesTask)
         }
+
+        fun isUnobfuscated(project: Project): Boolean =
+            project.providers.gradleProperty("fabric.loom.disableObfuscation").orNull == "true"
 
         private fun createJar(
             project: Project,

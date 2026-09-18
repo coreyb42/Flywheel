@@ -121,7 +121,7 @@ defaultPackageInfos {
 
 loom {
     mixin {
-        useLegacyMixinAp = true
+        useLegacyMixinAp = !providers.gradleProperty("fabric.loom.disableObfuscation").map(String::toBoolean).getOrElse(false)
         add(main, "flywheel.refmap.json")
         add(backend, "backend-flywheel.refmap.json")
     }

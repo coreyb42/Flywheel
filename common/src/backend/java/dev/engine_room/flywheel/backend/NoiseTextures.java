@@ -11,11 +11,11 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import dev.engine_room.flywheel.backend.gl.GlTextureUnit;
 import dev.engine_room.flywheel.lib.util.ResourceUtil;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 public class NoiseTextures {
-	public static final ResourceLocation NOISE_TEXTURE = ResourceUtil.rl("textures/flywheel/noise/blue.png");
+	public static final Identifier NOISE_TEXTURE = ResourceUtil.rl("textures/flywheel/noise/blue.png");
 
 	@UnknownNullability
 	public static DynamicTexture BLUE_NOISE;

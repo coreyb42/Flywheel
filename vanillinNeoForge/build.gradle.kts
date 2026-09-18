@@ -61,7 +61,7 @@ defaultPackageInfos {
 
 loom {
     mixin {
-        useLegacyMixinAp = true
+        useLegacyMixinAp = !providers.gradleProperty("fabric.loom.disableObfuscation").map(String::toBoolean).getOrElse(false)
         add(main, "vanillin.refmap.json")
     }
 
