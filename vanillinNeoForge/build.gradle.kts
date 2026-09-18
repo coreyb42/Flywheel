@@ -2,7 +2,7 @@ plugins {
     idea
     java
     `maven-publish`
-    id("dev.architectury.loom")
+    id("dev.architectury.loom-no-remap")
     id("flywheel.subproject")
     id("flywheel.platform")
 }
@@ -80,10 +80,10 @@ repositories {
 dependencies {
     neoForge("net.neoforged:neoforge:${property("neoforge_version")}")
 
-    modCompileOnly("maven.modrinth:sodium:${property("sodium_version")}-neoforge")
-    modCompileOnly("maven.modrinth:iris:${property("iris_version")}-neoforge")
+    compileOnly("maven.modrinth:sodium:${property("sodium_version")}-neoforge")
+    compileOnly("maven.modrinth:iris:${property("iris_version")}-neoforge")
 
-    modCompileOnly("maven.modrinth:embeddium:${property("embeddium_version")}")
+    compileOnly("maven.modrinth:embeddium:${property("embeddium_version")}")
 
     compileOnly(project(path = common, configuration = "vanillinClasses"))
     compileOnly(project(path = common, configuration = "vanillinResources"))

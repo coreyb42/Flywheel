@@ -104,13 +104,16 @@ open class SubprojectExtension(val project: Project) {
 
             add("minecraft", "com.mojang:minecraft:${minecraft_version}")
 
-            add("mappings", loom.layered {
-                officialMojangMappings()
-                if (parchment_version != "none") {
+            // Minecraft 26.1+ is shipped unobfuscated and provides no mapping
+            // archive in the version manifest. Loom must therefore receive no
+            // mappings layer for these versions.
+            if (parchment_version != "none") {
+                add("mappings", loom.layered {
+                    officialMojangMappings()
                     val parchment_minecraft_version: String by project
                     parchment("org.parchmentmc.data:parchment-${parchment_minecraft_version}:${parchment_version}@zip")
-                }
-            })
+                })
+            }
 
             add("api", "com.google.code.findbugs:jsr305:3.0.2")
         }

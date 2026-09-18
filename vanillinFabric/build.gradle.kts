@@ -2,7 +2,7 @@ plugins {
     idea
     java
     `maven-publish`
-    id("dev.architectury.loom")
+    id("dev.architectury.loom-no-remap")
     id("flywheel.subproject")
     id("flywheel.platform")
 }
@@ -73,10 +73,10 @@ loom {
 }
 
 dependencies {
-    modImplementation("net.fabricmc:fabric-loader:${property("fabric_loader_version")}")
-    modApi("net.fabricmc.fabric-api:fabric-api:${property("fabric_api_version")}")
+    implementation("net.fabricmc:fabric-loader:${property("fabric_loader_version")}")
+    api("net.fabricmc.fabric-api:fabric-api:${property("fabric_api_version")}")
 
-    modCompileOnly("maven.modrinth:sodium:${property("sodium_version")}-fabric")
+    compileOnly("maven.modrinth:sodium:${property("sodium_version")}-fabric")
 
     compileOnly(project(path = common, configuration = "vanillinClasses"))
     compileOnly(project(path = common, configuration = "vanillinResources"))
