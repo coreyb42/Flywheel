@@ -33,9 +33,9 @@ open class TransitiveSourceSetsExtension(val project: Project) {
 
         transitives.forEach { (sourceSet, configurator) ->
             project.configurations.named(sourceSet.compileOnlyConfigurationName).configure {
-                extendsFrom(configs[sourceSet])
+                extendsFrom(requireNotNull(configs[sourceSet]))
                 configurator.compileSourceSets.forEach {
-                    extendsFrom(configs[it])
+                    extendsFrom(requireNotNull(configs[it]))
                 }
             }
         }
@@ -51,9 +51,9 @@ open class TransitiveSourceSetsExtension(val project: Project) {
 
         transitives.forEach { (sourceSet, configurator) ->
             project.configurations.named(sourceSet.runtimeOnlyConfigurationName).configure {
-                extendsFrom(configs[sourceSet])
+                extendsFrom(requireNotNull(configs[sourceSet]))
                 configurator.runtimeSourceSets.forEach {
-                    extendsFrom(configs[it])
+                    extendsFrom(requireNotNull(configs[it]))
                 }
             }
         }
