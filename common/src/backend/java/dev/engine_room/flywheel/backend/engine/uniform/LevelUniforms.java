@@ -5,7 +5,12 @@ import org.joml.Vector3f;
 import dev.engine_room.flywheel.api.backend.RenderContext;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.ARGB;
+import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.MoonPhase;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.phys.Vec3;
 
 public final class LevelUniforms extends UniformWriter {
@@ -24,15 +29,16 @@ public final class LevelUniforms extends UniformWriter {
 		ClientLevel level = context.level();
 		float partialTick = context.partialTick();
 
-		Vec3 skyColor = level.getSkyColor(context.camera().position(), partialTick);
-		Vec3 cloudColor = level.getCloudColor(partialTick);
-		ptr = writeVec4(ptr, (float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1f);
-		ptr = writeVec4(ptr, (float) cloudColor.x, (float) cloudColor.y, (float) cloudColor.z, 1f);
+		var attributes = context.camera().attributeProbe();
+		int skyColor = attributes.getValue(EnvironmentAttributes.SKY_COLOR, partialTick);
+		int cloudColor = attributes.getValue(EnvironmentAttributes.CLOUD_COLOR, partialTick);
+		ptr = writeVec4(ptr, ARGB.redFloat(skyColor), ARGB.greenFloat(skyColor), ARGB.blueFloat(skyColor), 1f);
+		ptr = writeVec4(ptr, ARGB.redFloat(cloudColor), ARGB.greenFloat(cloudColor), ARGB.blueFloat(cloudColor), ARGB.alphaFloat(cloudColor));
 
 		ptr = writeVec3(ptr, LIGHT0_DIRECTION);
 		ptr = writeVec3(ptr, LIGHT1_DIRECTION);
 
-		long dayTime = level.getDayTime();
+		long dayTime = level.getLevelData().getGameTime();
 		long levelDay = dayTime / 24000L;
 		float timeOfDay = (float) (dayTime - levelDay * 24000L) / 24000f;
 		ptr = writeInt(ptr, (int) (levelDay % 0x7FFFFFFFL));
@@ -40,19 +46,20 @@ public final class LevelUniforms extends UniformWriter {
 
 		ptr = writeInt(ptr, level.dimensionType().hasSkyLight() ? 1 : 0);
 
-		ptr = writeFloat(ptr, level.getSunAngle(partialTick));
+		ptr = writeFloat(ptr, attributes.getValue(EnvironmentAttributes.SUN_ANGLE, partialTick) * (float) (Math.PI / 180.0));
 
-		ptr = writeFloat(ptr, level.getMoonBrightness());
-		ptr = writeInt(ptr, level.getMoonPhase());
+		MoonPhase moonPhase = attributes.getValue(EnvironmentAttributes.MOON_PHASE, partialTick);
+		ptr = writeFloat(ptr, DimensionType.MOON_BRIGHTNESS_PER_PHASE[moonPhase.index()]);
+		ptr = writeInt(ptr, moonPhase.index());
 
 		ptr = writeInt(ptr, level.isRaining() ? 1 : 0);
 		ptr = writeFloat(ptr, level.getRainLevel(partialTick));
 		ptr = writeInt(ptr, level.isThundering() ? 1 : 0);
 		ptr = writeFloat(ptr, level.getThunderLevel(partialTick));
 
-		ptr = writeFloat(ptr, level.getSkyDarken(partialTick));
+		ptr = writeFloat(ptr, level.getSkyDarken());
 
-		ptr = writeInt(ptr, level.effects().constantAmbientLight() ? 1 : 0);
+		ptr = writeInt(ptr, level.dimensionType().cardinalLightType() == CardinalLighting.Type.NETHER ? 1 : 0);
 
 		// TODO: use defines for custom dimension ids
         int dimensionId;

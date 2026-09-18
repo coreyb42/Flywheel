@@ -13,7 +13,6 @@ import dev.engine_room.flywheel.backend.mixin.LevelRendererAccessor;
 import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.Level;
@@ -109,7 +108,7 @@ public final class FrameUniforms extends UniformWriter {
 		ptr = writeFloat(ptr, (float) window.getWidth() / (float) window.getHeight());
 		// default line width: net.minecraft.client.renderer.RenderStateShard.LineStateShard
 		ptr = writeFloat(ptr, Math.max(2.5F, (float) window.getWidth() / 1920.0F * 2.5F));
-		ptr = writeFloat(ptr, Minecraft.getInstance().gameRenderer.getDepthFar());
+		ptr = writeFloat(ptr, cameraDepthFar());
 
 		ptr = writeTime(ptr, context);
 
@@ -193,14 +192,14 @@ public final class FrameUniforms extends UniformWriter {
 
 	private static long writeCullData(long ptr) {
 		var mc = Minecraft.getInstance();
-		var mainRenderTarget = mc.getMainRenderTarget();
+		var mainRenderTarget = mc.gameRenderer.mainRenderTarget();
 
 		int pyramidWidth = DepthPyramid.mip0Size(mainRenderTarget.width);
 		int pyramidHeight = DepthPyramid.mip0Size(mainRenderTarget.height);
 		int pyramidDepth = DepthPyramid.getImageMipLevels(pyramidWidth, pyramidHeight);
 
-		ptr = writeFloat(ptr, GameRenderer.PROJECTION_Z_NEAR); // zNear
-		ptr = writeFloat(ptr, mc.gameRenderer.getDepthFar()); // zFar
+		ptr = writeFloat(ptr, cameraDepthNear()); // zNear
+		ptr = writeFloat(ptr, cameraDepthFar()); // zFar
 		ptr = writeFloat(ptr, PROJECTION.m00()); // P00
 		ptr = writeFloat(ptr, PROJECTION.m11()); // P11
 		ptr = writeFloat(ptr, pyramidWidth); // pyramidWidth
@@ -209,6 +208,15 @@ public final class FrameUniforms extends UniformWriter {
 		ptr = writeInt(ptr, 0); // useMin
 
 		return ptr;
+	}
+
+	private static float cameraDepthNear() {
+		return 0.05F;
+	}
+
+	private static float cameraDepthFar() {
+		var options = Minecraft.getInstance().options;
+		return Math.max(options.getEffectiveRenderDistance() * 16.0F, options.cloudRange().get() * 16.0F);
 	}
 
 	/**

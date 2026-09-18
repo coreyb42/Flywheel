@@ -62,9 +62,10 @@ public final class PlayerUniforms extends UniformWriter {
 
 	private static long writeTeamColor(long ptr, @Nullable PlayerTeam team) {
 		if (team != null) {
-			Integer color = team.getColor().getColor();
+			var teamColor = team.getColor();
 
-			if (color != null) {
+			if (teamColor.isPresent()) {
+				int color = teamColor.get().rgb();
 				int red = ARGB.red(color);
 				int green = ARGB.green(color);
 				int blue = ARGB.blue(color);
@@ -78,10 +79,10 @@ public final class PlayerUniforms extends UniformWriter {
 	}
 
 	private static long writeEyeBrightness(long ptr, LocalPlayer player) {
-		ClientLevel level = player.clientLevel;
+		ClientLevel level = (ClientLevel) player.level();
 		int blockBrightness = level.getBrightness(LightLayer.BLOCK, player.blockPosition());
 		int skyBrightness = level.getBrightness(LightLayer.SKY, player.blockPosition());
-		int maxBrightness = level.getMaxLightLevel();
+		int maxBrightness = 15;
 
 		return writeVec2(ptr, (float) blockBrightness / (float) maxBrightness,
 				(float) skyBrightness / (float) maxBrightness);
@@ -95,7 +96,7 @@ public final class PlayerUniforms extends UniformWriter {
 			if (handItem instanceof BlockItem blockItem) {
 				Block block = blockItem.getBlock();
 				int blockLight = FlwBackendXplat.INSTANCE
-						.getLightEmission(block.defaultBlockState(), player.clientLevel, player.blockPosition());
+						.getLightEmission(block.defaultBlockState(), (ClientLevel) player.level(), player.blockPosition());
 				if (heldLight < blockLight) {
 					heldLight = blockLight;
 				}
@@ -106,7 +107,7 @@ public final class PlayerUniforms extends UniformWriter {
 	}
 
 	private static long writeEyeIn(long ptr, LocalPlayer player) {
-		ClientLevel level = player.clientLevel;
+		ClientLevel level = (ClientLevel) player.level();
 		Vec3 eyePos = player.getEyePosition();
 		BlockPos blockPos = BlockPos.containing(eyePos);
 		return writeInFluidAndBlock(ptr, level, blockPos, eyePos);
