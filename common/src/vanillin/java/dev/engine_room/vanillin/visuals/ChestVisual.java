@@ -23,7 +23,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -74,7 +74,7 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 		Block block = blockState.getBlock();
 		if (block instanceof AbstractChestBlock<?> chestBlock) {
 			ChestType chestType = blockState.hasProperty(ChestBlock.TYPE) ? blockState.getValue(ChestBlock.TYPE) : ChestType.SINGLE;
-			net.minecraft.client.resources.model.Material texture = Sheets.chooseMaterial(blockEntity, chestType, isChristmas());
+			net.minecraft.client.resources.model.sprite.Material texture = Sheets.chooseMaterial(blockEntity, chestType, isChristmas());
 			instances = InstanceTree.create(instancerProvider(), ModelTrees.of(LAYER_LOCATIONS.get(chestType), texture, MATERIAL));
 			lid = instances.childOrThrow("lid");
 			lock = instances.childOrThrow("lock");
@@ -202,11 +202,11 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 		public Integer acceptDouble(BlockEntity first, BlockEntity second) {
 			int firstLight = LevelRenderer.getLightColor(first.getLevel(), first.getBlockPos());
 			int secondLight = LevelRenderer.getLightColor(second.getLevel(), second.getBlockPos());
-			int firstBlockLight = LightTexture.block(firstLight);
-			int secondBlockLight = LightTexture.block(secondLight);
-			int firstSkyLight = LightTexture.sky(firstLight);
-			int secondSkyLight = LightTexture.sky(secondLight);
-			return LightTexture.pack(Math.max(firstBlockLight, secondBlockLight), Math.max(firstSkyLight, secondSkyLight));
+			int firstBlockLight = LightCoordsUtil.block(firstLight);
+			int secondBlockLight = LightCoordsUtil.block(secondLight);
+			int firstSkyLight = LightCoordsUtil.sky(firstLight);
+			int secondSkyLight = LightCoordsUtil.sky(secondLight);
+			return LightCoordsUtil.pack(Math.max(firstBlockLight, secondBlockLight), Math.max(firstSkyLight, secondSkyLight));
 		}
 
 		@Override

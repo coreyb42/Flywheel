@@ -10,13 +10,13 @@ import dev.engine_room.flywheel.api.material.Material;
 import dev.engine_room.flywheel.lib.internal.FlwLibXplat;
 import dev.engine_room.flywheel.lib.model.ModelUtil;
 import dev.engine_room.flywheel.lib.model.SimpleModel;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 
 public final class BakedModelBuilder {
-	final BakedModel bakedModel;
+	final BlockStateModel bakedModel;
 	@Nullable
 	BlockAndTintGetter level;
 	@Nullable
@@ -26,7 +26,7 @@ public final class BakedModelBuilder {
 	@Nullable
 	BlockMaterialFunction materialFunc;
 
-	public BakedModelBuilder(BakedModel bakedModel) {
+	public BakedModelBuilder(BlockStateModel bakedModel) {
 		this.bakedModel = bakedModel;
 	}
 

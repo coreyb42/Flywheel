@@ -13,7 +13,7 @@ import dev.engine_room.flywheel.lib.visual.AbstractVisual;
 import dev.engine_room.flywheel.lib.visual.SimpleDynamicVisual;
 import dev.engine_room.vanillin.item.ItemModels;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.resources.model.ModelManager;
 import net.minecraft.client.resources.model.ModelIdentifier;
 import net.minecraft.core.BlockPos;
@@ -86,7 +86,7 @@ public class ItemFrameVisual extends AbstractVisual implements EntityVisual<Item
 	}
 
 	public void animate(float partialTick) {
-		var light = LightTexture.pack(getBlockLightLevel(entity.getPos()), getSkyLightLevel(entity.getPos()));
+		var light = LightCoordsUtil.pack(getBlockLightLevel(entity.getPos()), getSkyLightLevel(entity.getPos()));
 
 		boolean invisible = entity.isInvisible();
 

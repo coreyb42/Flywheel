@@ -10,7 +10,7 @@ import dev.engine_room.flywheel.api.material.MaterialShaders;
 import dev.engine_room.flywheel.api.material.Transparency;
 import dev.engine_room.flywheel.api.material.WriteMask;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.client.renderer.texture.TextureAtlas;
 
 public class SimpleMaterial implements Material {
 	protected final MaterialShaders shaders;
@@ -168,7 +168,7 @@ public class SimpleMaterial implements Material {
 			fog = FogShaders.LINEAR;
 			cutout = CutoutShaders.OFF;
 			light = LightShaders.SMOOTH_WHEN_EMBEDDED;
-			texture = InventoryMenu.BLOCK_ATLAS;
+			texture = TextureAtlas.LOCATION_BLOCKS;
 			blur = false;
 			mipmap = true;
 			backfaceCulling = true;

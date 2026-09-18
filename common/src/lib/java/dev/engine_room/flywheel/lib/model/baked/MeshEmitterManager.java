@@ -13,7 +13,7 @@ import dev.engine_room.flywheel.api.model.Model;
 import dev.engine_room.flywheel.lib.model.SimpleModel;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceArrayMap;
 import it.unimi.dsi.fastutil.objects.Reference2ReferenceMap;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderType;
 
 class MeshEmitterManager<T extends MeshEmitter> {
 	private static final RenderType[] CHUNK_LAYERS = RenderType.chunkBufferLayers().toArray(RenderType[]::new);
