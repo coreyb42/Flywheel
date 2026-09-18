@@ -100,7 +100,7 @@ public class ItemFrameVisual extends AbstractVisual implements EntityVisual<Item
 		float z = (float) (entity.getZ() - origin.getZ() + direction.getStepZ() * d);
 
 		baseTransform.translation(x, y, z);
-		baseTransform.rotateXYZ(Mth.DEG_TO_RAD * entity.getXRot(), Mth.DEG_TO_RAD * (180.0f - entity.getYRot()), 0.0f);
+		baseTransform.rotateXYZ(Mth.DEG_TO_RAD * entity.xRot(), Mth.DEG_TO_RAD * (180.0f - entity.yRot()), 0.0f);
 
 		var stack = entity.getItem();
 		var frameLocation = getFrameModelResourceLoc(entity, stack);

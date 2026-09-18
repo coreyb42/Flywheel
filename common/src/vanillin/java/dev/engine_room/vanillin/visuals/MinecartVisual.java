@@ -104,7 +104,7 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 
 		var renderOrigin = renderOrigin();
 		stack.translate((float) (posX - renderOrigin.getX()), (float) (posY - renderOrigin.getY()), (float) (posZ - renderOrigin.getZ()));
-		float yaw = Mth.lerp(partialTick, entity.yRotO, entity.getYRot());
+		float yaw = Mth.lerp(partialTick, entity.yRotO, entity.yRot());
 
 		long randomBits = entity.getId() * 493286711L;
 		randomBits = randomBits * randomBits * 4392167121L + randomBits * 98761L;
@@ -114,7 +114,7 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 		stack.translate(nudgeX, nudgeY, nudgeZ);
 
 		Vec3 pos = entity.getPos(posX, posY, posZ);
-		float pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
+		float pitch = Mth.lerp(partialTick, entity.xRotO, entity.xRot());
 		if (pos != null) {
 			Vec3 offset1 = entity.getPosOffs(posX, posY, posZ, 0.3F);
 			Vec3 offset2 = entity.getPosOffs(posX, posY, posZ, -0.3F);

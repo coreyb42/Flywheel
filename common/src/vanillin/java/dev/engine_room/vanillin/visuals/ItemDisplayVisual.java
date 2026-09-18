@@ -117,19 +117,19 @@ public class ItemDisplayVisual extends AbstractEntityVisual<Display.ItemDisplay>
 	}
 
 	private static float cameraYrot(Camera camera) {
-		return camera.getYRot() - 180.0F;
+		return camera.yRot() - 180.0F;
 	}
 
 	private static float cameraXRot(Camera camera) {
-		return -camera.getXRot();
+		return -camera.xRot();
 	}
 
 	private static float entityYRot(Entity entity, float partialTick) {
-		return Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
+		return Mth.rotLerp(partialTick, entity.yRotO, entity.yRot());
 	}
 
 	private static float entityXRot(Entity entity, float partialTick) {
-		return Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
+		return Mth.lerp(partialTick, entity.xRotO, entity.xRot());
 	}
 
 	@Override
