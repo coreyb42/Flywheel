@@ -75,3 +75,49 @@ world join/leave, resize, graphics preset changes, and renderer/device teardown
 have been tested. Performance optimizations follow correct resource ownership
 and visuals; none may reintroduce direct access to Minecraft's private GPU
 objects.
+
+## Indirect backend audit and migration gate
+
+The old `IndirectDrawManager`, `IndirectCullingGroup`, and `DepthPyramid`
+form one GPU-compute pipeline, not three independently portable utilities:
+
+1. `DepthPyramid` reads the main depth attachment, writes a mipmapped R32F
+   image from compute shaders, and exposes that image to culling.
+2. `IndirectCullingGroup` binds five SSBOs, dispatches the cull shader, then
+   dispatches the apply shader. Those shaders compact visible instance indices
+   and mutate the `VkDrawIndexedIndirectCommand.instanceCount` fields.
+3. `IndirectDrawManager` issues the resulting command buffer through
+   `glDrawElementsIndirect` / multi-draw indirect.
+
+The 26.2 public API has `RenderPass.drawIndexedIndirect`, but its command
+buffer is input-only: `GpuBuffer` has no storage-buffer usage, `RenderPass`
+has no compute dispatch, and `CommandEncoder` has no shader-image or
+storage-buffer binding. It also cannot create a render pass without an
+attachment, which prevents treating a fragment pipeline as a compute
+substitute. `copyTextureToBuffer` is available for asynchronous texture
+readback, but it cannot provide same-frame hierarchical-Z data and would not
+make arbitrary instance layouts CPU-cullable.
+
+Accordingly, converting only one of these classes would either retain raw GL,
+silently stop culling, or issue commands with stale GPU-written counts. All
+three are deliberately kept behind the existing legacy backend until the
+replacement has the following complete vertical slice:
+
+1. A CPU-visible instance representation that supplies a conservative world
+   bounding volume for every `InstanceType`; the current generic
+   `InstanceWriter` serializes arbitrary layout bytes and exposes no bounds.
+2. Frustum visibility computed from those bounds, followed by CPU construction
+   of direct-instanced draw batches (or CPU-authored indirect commands where
+   `DeviceFeatures.drawIndirect()` is available).
+3. `GpuBuffer` vertex/index/instance uploads and immutable `RenderPipeline`
+   variants for each material/environment combination, submitted only through
+   `RenderPass`.
+4. Occlusion added only after a public, frame-safe depth-readback policy and
+   conservative temporal visibility rule are designed. Frustum-only culling is
+   a correct initial replacement; pretending a CPU copy is same-frame HZB is
+   not.
+
+This is a hard API boundary, not a compilation blocker. The next code change
+must introduce that CPU direct-instancing vertical slice and then retire these
+three GL classes together. No native handles, reflection, mixin access to
+renderer internals, raw GL calls, or no-op culling path is acceptable.
