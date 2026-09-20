@@ -2,29 +2,31 @@ package dev.engine_room.flywheel.backend;
 
 import java.io.IOException;
 
-import org.jetbrains.annotations.UnknownNullability;
-import org.lwjgl.opengl.GL32;
+import org.jetbrains.annotations.Nullable;
 
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-
-import dev.engine_room.flywheel.backend.gl.GlTextureUnit;
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
 import dev.engine_room.flywheel.lib.util.ResourceUtil;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 public class NoiseTextures {
 	public static final Identifier NOISE_TEXTURE = ResourceUtil.rl("textures/flywheel/noise/blue.png");
 
-	@UnknownNullability
-	public static DynamicTexture BLUE_NOISE;
+	@Nullable
+	private static GpuTexture blueNoise;
+	@Nullable
+	private static GpuTextureView blueNoiseView;
 
 	public static void reload(ResourceManager manager) {
-		if (BLUE_NOISE != null) {
-			BLUE_NOISE.close();
-			BLUE_NOISE = null;
-		}
+		close();
 		var optional = manager.getResource(NOISE_TEXTURE);
 
 		if (optional.isEmpty()) {
@@ -35,18 +37,44 @@ public class NoiseTextures {
 				.open()) {
 			var image = NativeImage.read(NativeImage.Format.LUMINANCE, is);
 
-			BLUE_NOISE = new DynamicTexture(image);
-
-			GlTextureUnit.T0.makeActive();
-			BLUE_NOISE.bind();
-
-			NoiseTextures.BLUE_NOISE.setFilter(true, false);
-			RenderSystem.texParameter(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_WRAP_S, GL32.GL_REPEAT);
-			RenderSystem.texParameter(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_WRAP_T, GL32.GL_REPEAT);
-
-			RenderSystem.bindTexture(0);
+			blueNoise = RenderSystem.getDevice()
+					.createTexture(() -> "flywheel/blue_noise", GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_TEXTURE_BINDING,
+							GpuFormat.R8_UNORM, image.getWidth(), image.getHeight(), 1, 1);
+			try {
+				blueNoiseView = RenderSystem.getDevice().createTextureView(blueNoise);
+				RenderSystem.getDevice().createCommandEncoder().writeToTexture(blueNoise, image);
+			} catch (RuntimeException | Error e) {
+				close();
+				throw e;
+			} finally {
+				image.close();
+			}
 		} catch (IOException e) {
 
+		}
+	}
+
+	/** Bind the blue-noise texture to a named resource on an active render pass. */
+	public static void bind(RenderPass pass, String name) {
+		if (blueNoiseView == null) {
+			throw new IllegalStateException("Blue-noise texture has not been loaded");
+		}
+		pass.bindTexture(name, blueNoiseView, sampler());
+	}
+
+	private static GpuSampler sampler() {
+		return RenderSystem.getSamplerCache()
+				.getSampler(AddressMode.REPEAT, AddressMode.REPEAT, FilterMode.LINEAR, FilterMode.LINEAR, false);
+	}
+
+	private static void close() {
+		if (blueNoiseView != null) {
+			blueNoiseView.close();
+			blueNoiseView = null;
+		}
+		if (blueNoise != null) {
+			blueNoise.close();
+			blueNoise = null;
 		}
 	}
 }
