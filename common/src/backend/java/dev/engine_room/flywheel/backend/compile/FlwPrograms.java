@@ -25,7 +25,6 @@ public final class FlwPrograms {
 	static void reload(ResourceManager resourceManager) {
 		// Reset the programs in case the ubershader load fails.
 		InstancingPrograms.setInstance(null);
-		IndirectPrograms.setInstance(null);
 
 		var sources = new ShaderSources(resourceManager);
 		SOURCES = sources;
@@ -36,6 +35,5 @@ public final class FlwPrograms {
 		List<SourceComponent> fragmentComponents = List.of(fragmentComponentsHeader);
 
 		InstancingPrograms.reload(sources, vertexComponents, fragmentComponents);
-		IndirectPrograms.reload(sources, vertexComponents, fragmentComponents);
 	}
 }

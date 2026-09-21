@@ -8,7 +8,6 @@ import org.lwjgl.system.MemoryUtil;
 
 import dev.engine_room.flywheel.api.backend.RenderContext;
 import dev.engine_room.flywheel.api.visualization.VisualizationManager;
-import dev.engine_room.flywheel.backend.engine.indirect.DepthPyramid;
 import dev.engine_room.flywheel.backend.mixin.LevelRendererAccessor;
 import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
@@ -194,9 +193,9 @@ public final class FrameUniforms extends UniformWriter {
 		var mc = Minecraft.getInstance();
 		var mainRenderTarget = mc.gameRenderer.mainRenderTarget();
 
-		int pyramidWidth = DepthPyramid.mip0Size(mainRenderTarget.width);
-		int pyramidHeight = DepthPyramid.mip0Size(mainRenderTarget.height);
-		int pyramidDepth = DepthPyramid.getImageMipLevels(pyramidWidth, pyramidHeight);
+		int pyramidWidth = mip0Size(mainRenderTarget.width);
+		int pyramidHeight = mip0Size(mainRenderTarget.height);
+		int pyramidDepth = imageMipLevels(pyramidWidth, pyramidHeight);
 
 		ptr = writeFloat(ptr, cameraDepthNear()); // zNear
 		ptr = writeFloat(ptr, cameraDepthFar()); // zFar
@@ -208,6 +207,19 @@ public final class FrameUniforms extends UniformWriter {
 		ptr = writeInt(ptr, 0); // useMin
 
 		return ptr;
+	}
+
+	/**
+	 * Retained frame-uniform dimensions for shader compatibility. The former
+	 * compute renderer used these values to sample its depth pyramid; the direct
+	 * renderer does CPU visibility selection and does not allocate that texture.
+	 */
+	private static int mip0Size(int size) {
+		return Math.max(1, (size + 1) / 2);
+	}
+
+	private static int imageMipLevels(int width, int height) {
+		return 32 - Integer.numberOfLeadingZeros(Math.max(width, height));
 	}
 
 	private static float cameraDepthNear() {

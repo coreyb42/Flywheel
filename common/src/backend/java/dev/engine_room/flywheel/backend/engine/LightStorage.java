@@ -11,7 +11,6 @@ import dev.engine_room.flywheel.api.visual.EffectVisual;
 import dev.engine_room.flywheel.api.visualization.VisualizationContext;
 import dev.engine_room.flywheel.api.visualization.VisualizationManager;
 import dev.engine_room.flywheel.backend.BackendDebugFlags;
-import dev.engine_room.flywheel.backend.engine.indirect.StagingBuffer;
 import dev.engine_room.flywheel.backend.gl.buffer.GlBuffer;
 import dev.engine_room.flywheel.lib.instance.InstanceTypes;
 import dev.engine_room.flywheel.lib.instance.TransformedInstance;
@@ -233,13 +232,6 @@ public class LightStorage implements Effect {
 		var out = needsLutRebuild;
 		needsLutRebuild = false;
 		return out;
-	}
-
-	public void uploadChangedSections(StagingBuffer staging, int dstVbo) {
-		for (int i = changed.nextSetBit(0); i >= 0; i = changed.nextSetBit(i + 1)) {
-			staging.enqueueCopy(arena.indexToPointer(i), SECTION_SIZE_BYTES, dstVbo, i * SECTION_SIZE_BYTES);
-		}
-		changed.clear();
 	}
 
 	public void upload(GlBuffer buffer) {
