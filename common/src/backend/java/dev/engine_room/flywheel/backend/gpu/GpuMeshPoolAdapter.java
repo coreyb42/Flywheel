@@ -33,6 +33,7 @@ public final class GpuMeshPoolAdapter implements AutoCloseable {
 	private final GpuIndexBuffer indices;
 	private final VertexView vertexView = InternalVertex.createVertexView();
 	private final Map<MeshPool.PooledMesh, Geometry> geometry = new IdentityHashMap<>();
+	private final Map<Mesh, Geometry> sourceGeometry = new IdentityHashMap<>();
 	private boolean closed;
 
 	public GpuMeshPoolAdapter(Supplier<String> label) {
@@ -116,6 +117,79 @@ public final class GpuMeshPoolAdapter implements AutoCloseable {
 		return Optional.ofNullable(geometry.get(Objects.requireNonNull(pooledMesh, "pooledMesh")));
 	}
 
+	/**
+	 * Upload direct-renderer meshes without constructing the legacy GL-backed
+	 * {@link MeshPool}. The list is de-duplicated by identity, preserving the
+	 * same sharing rule as the old pool while keeping this path wholly public-GPU.
+	 */
+	public void uploadMeshes(List<Mesh> input) {
+		ensureOpen();
+		Objects.requireNonNull(input, "input");
+		List<Mesh> meshes = new ArrayList<>();
+		Map<Mesh, Boolean> seen = new IdentityHashMap<>();
+		for (Mesh mesh : input) {
+			Objects.requireNonNull(mesh, "mesh");
+			if (mesh.vertexCount() > 0 && mesh.indexCount() > 0 && seen.put(mesh, Boolean.TRUE) == null) meshes.add(mesh);
+		}
+		long vertexBytes = 0;
+		long indexCount = 0;
+		Map<IndexSequence, Integer> sequenceCounts = new IdentityHashMap<>();
+		List<IndexSequence> sequences = new ArrayList<>();
+		for (Mesh mesh : meshes) {
+			vertexBytes = Math.addExact(vertexBytes, (long) mesh.vertexCount() * InternalVertex.STRIDE);
+			Integer oldCount = sequenceCounts.get(mesh.indexSequence());
+			if (oldCount == null) {
+				sequenceCounts.put(mesh.indexSequence(), mesh.indexCount());
+				sequences.add(mesh.indexSequence());
+				indexCount = Math.addExact(indexCount, mesh.indexCount());
+			} else if (mesh.indexCount() > oldCount) {
+				sequenceCounts.put(mesh.indexSequence(), mesh.indexCount());
+				indexCount = Math.addExact(indexCount, mesh.indexCount() - oldCount);
+			}
+		}
+		if (vertexBytes == 0 || indexCount == 0) {
+			sourceGeometry.clear();
+			return;
+		}
+		long indexBytes = Math.multiplyExact(indexCount, Integer.BYTES);
+		if (vertexBytes > Integer.MAX_VALUE || indexBytes > Integer.MAX_VALUE) throw new IllegalArgumentException("Direct mesh upload is too large for a CPU buffer");
+		MemoryBlock vertexBlock = MemoryBlock.malloc(vertexBytes);
+		MemoryBlock indexBlock = MemoryBlock.malloc(indexBytes);
+		try {
+			Map<IndexSequence, Integer> firstIndices = new IdentityHashMap<>();
+			int nextIndex = 0;
+			for (IndexSequence sequence : sequences) {
+				firstIndices.put(sequence, nextIndex);
+				int count = sequenceCounts.get(sequence);
+				sequence.fill(indexBlock.ptr() + (long) nextIndex * Integer.BYTES, count);
+				nextIndex += count;
+			}
+			Map<Mesh, Geometry> rebuilt = new IdentityHashMap<>();
+			long vertexOffset = 0;
+			int baseVertex = 0;
+			for (Mesh mesh : meshes) {
+				vertexView.ptr(vertexBlock.ptr() + vertexOffset);
+				vertexView.vertexCount(mesh.vertexCount());
+				mesh.write(vertexView);
+				rebuilt.put(mesh, new Geometry(firstIndices.get(mesh.indexSequence()), baseVertex, mesh.indexCount(), mesh.vertexCount()));
+				vertexOffset += (long) mesh.vertexCount() * InternalVertex.STRIDE;
+				baseVertex += mesh.vertexCount();
+			}
+			vertices.upload(uploadView(vertexBlock, vertexBytes));
+			indices.upload(uploadView(indexBlock, indexBytes));
+			sourceGeometry.clear();
+			sourceGeometry.putAll(rebuilt);
+		} finally {
+			vertexBlock.free();
+			indexBlock.free();
+		}
+	}
+
+	/** Geometry for a source mesh uploaded through {@link #uploadMeshes(List)}. */
+	public Optional<Geometry> geometry(Mesh mesh) {
+		return Optional.ofNullable(sourceGeometry.get(Objects.requireNonNull(mesh, "mesh")));
+	}
+
 	public GpuVertexBuffer vertices() {
 		return vertices;
 	}
@@ -144,6 +218,7 @@ public final class GpuMeshPoolAdapter implements AutoCloseable {
 		}
 		closed = true;
 		geometry.clear();
+		sourceGeometry.clear();
 		vertices.close();
 		indices.close();
 	}
