@@ -1,20 +1,17 @@
 package dev.engine_room.vanillin.item;
 
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.joml.Vector4f;
-import org.lwjgl.system.MemoryStack;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import dev.engine_room.flywheel.api.material.Material;
@@ -27,273 +24,152 @@ import dev.engine_room.flywheel.lib.memory.MemoryBlock;
 import dev.engine_room.flywheel.lib.model.ModelUtil;
 import dev.engine_room.flywheel.lib.model.SimpleModel;
 import dev.engine_room.flywheel.lib.model.SimpleQuadMesh;
-import dev.engine_room.flywheel.lib.model.SingleMeshModel;
 import dev.engine_room.flywheel.lib.util.RendererReloadCache;
 import dev.engine_room.flywheel.lib.vertex.FullVertexView;
 import dev.engine_room.vanillin.Vanillin;
-import dev.engine_room.vanillin.VanillinXplat;
-import dev.engine_room.vanillin.mixin.item.ItemOverridesAccessor;
+import dev.engine_room.vanillin.mixin.item.ItemStackRenderStateAccessor;
+import dev.engine_room.vanillin.mixin.item.ItemStackRenderStateLayerAccessor;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.ItemOverrides;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.client.resources.model.ModelIdentifier;
-import net.minecraft.client.resources.model.MultiPartBakedModel;
-import net.minecraft.client.resources.model.SimpleBakedModel;
-import net.minecraft.client.resources.model.WeightedBakedModel;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.data.models.ItemModelGenerators;
-import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.entity.ItemOwner;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.HalfTransparentBlock;
-import net.minecraft.world.level.block.StainedGlassPaneBlock;
 
+/** Converts native 26.2 item render-state layers into Flywheel meshes. */
 public class ItemModels {
 	public static final TagKey<Item> NO_INSTANCING = TagKey.create(Registries.ITEM, Vanillin.rl("no_instancing"));
 
 	private static final Model EMPTY_MODEL = new SimpleModel(List.of());
-	private static final RendererReloadCache<BakedMeshKey, Mesh> MESH_CACHE = new RendererReloadCache<>(key -> bakeMesh(key.model(), key.displayContext()));
-	private static final RendererReloadCache<BakedModelKey, Model> MODEL_CACHE = new RendererReloadCache<>(key -> bakeModel(key.model(), key.displayContext(), key.material(), key.foil()));
-
-	private static final ModelIdentifier TRIDENT_MODEL = ModelIdentifier.vanilla("trident", "inventory");
-	private static final ModelIdentifier SPYGLASS_MODEL = ModelIdentifier.vanilla("spyglass", "inventory");
-
-	private static final @Nullable Direction[] DIRECTIONS = new Direction[]{Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, null};
-
-	private static final Set<Identifier> ALLOWED_OVERRIDES = new HashSet<>();
-
-	static {
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("lefthanded"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("cooldown"));
-		ALLOWED_OVERRIDES.add(ItemModelGenerators.TRIM_TYPE_PREDICATE_ID);
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("custom_model_data"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("pull"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("brushing"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("pulling"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("filled"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("charged"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("firework"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("broken"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("cast"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("blocking"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("throwing"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("level"));
-		ALLOWED_OVERRIDES.add(Identifier.withDefaultNamespace("tooting"));
-	}
+	private static final RendererReloadCache<ResolvedItemModel, Model> MODEL_CACHE = new RendererReloadCache<>(ItemModels::bakeModel);
 
 	public static boolean isSupported(ItemStack stack) {
-		return !stack.is(NO_INSTANCING) && doesNotHaveItemColors(stack.getItem()) && isSupported(getModel(stack));
+		return !stack.is(NO_INSTANCING) && isSupported(resolve(stack, ItemDisplayContext.GROUND, null));
 	}
 
-	private static boolean doesNotHaveItemColors(Item item) {
-		return VanillinXplat.INSTANCE.itemColors(item) == null;
+	public static boolean isSupported(ItemStack stack, ItemDisplayContext displayContext, @Nullable ItemOwner owner) {
+		return !stack.is(NO_INSTANCING) && isSupported(resolve(stack, displayContext, owner));
 	}
 
-	public static BakedModel getModel(ItemStack stack) {
-		return Minecraft.getInstance()
-				.getItemRenderer()
-				.getItemModelShaper()
-				.getItemModel(stack);
+	public static Geometry geometry(ItemStack stack, ItemDisplayContext displayContext, @Nullable ItemOwner owner) {
+		var resolved = resolve(stack, displayContext, owner);
+		return new Geometry(resolved.minY(), resolved.zSize());
 	}
 
-	@Nullable
-	public static BakedModel getActualBakedModel(@Nullable ClientLevel clientLevel, ItemStack itemStack, ItemDisplayContext displayContext) {
-		if (itemStack.isEmpty()) {
-			return null;
-		}
-
-		var baseModel = getModel(itemStack);
-		var overrides = baseModel.getOverrides();
-		var model = overrides.resolve(baseModel, itemStack, clientLevel, null, 0);
-
-		if (model == null) {
-			model = baseModel;
-		}
-
-		boolean notEquipped = displayContext == ItemDisplayContext.GUI || displayContext == ItemDisplayContext.GROUND || displayContext == ItemDisplayContext.FIXED;
-		if (model.isCustomRenderer() || itemStack.is(Items.TRIDENT) && !notEquipped) {
-			return null;
-		}
-
-		if (notEquipped) {
-			if (itemStack.is(Items.TRIDENT)) {
-				model = Minecraft.getInstance()
-						.getItemRenderer()
-						.getItemModelShaper()
-						.getModelManager()
-						.getModel(TRIDENT_MODEL);
-			} else if (itemStack.is(Items.SPYGLASS)) {
-				model = Minecraft.getInstance()
-						.getItemRenderer()
-						.getItemModelShaper()
-						.getModelManager()
-						.getModel(SPYGLASS_MODEL);
-			}
-		}
-
-		return model;
+	public static Model get(Level level, ItemStack stack, ItemDisplayContext displayContext) {
+		return get(level, stack, displayContext, null);
 	}
 
-	public static boolean isSupported(BakedModel model) {
-		if (model.isCustomRenderer()) {
+	public static Model get(Level level, ItemStack stack, ItemDisplayContext displayContext, @Nullable ItemOwner owner) {
+		var resolved = resolve(stack, displayContext, owner);
+		return isSupported(resolved) ? MODEL_CACHE.get(resolved) : EMPTY_MODEL;
+	}
+
+	private static ResolvedItemModel resolve(ItemStack stack, ItemDisplayContext displayContext, @Nullable ItemOwner owner) {
+		if (stack.isEmpty()) {
+			return ResolvedItemModel.EMPTY;
+		}
+
+		var state = new ItemStackRenderState();
+		var level = Minecraft.getInstance().level;
+		Minecraft.getInstance().getItemModelResolver().updateForTopItem(state, stack, displayContext, level, owner, 0);
+
+		var stateAccessor = (ItemStackRenderStateAccessor) state;
+		var layers = stateAccessor.vanillin$layers();
+		var resolvedLayers = new ArrayList<ResolvedLayer>(stateAccessor.vanillin$activeLayerCount());
+
+		for (int i = 0; i < stateAccessor.vanillin$activeLayerCount(); i++) {
+			var layer = (ItemStackRenderStateLayerAccessor) layers[i];
+			resolvedLayers.add(new ResolvedLayer(List.copyOf(layer.vanillin$quads()), layer.vanillin$itemTransform(), new Matrix4f(layer.vanillin$localTransform()), layer.vanillin$foilType(), layer.vanillin$tintLayers(), layer.vanillin$specialRenderer() != null));
+		}
+
+		var bounds = state.getModelBoundingBox();
+		return new ResolvedItemModel(List.copyOf(resolvedLayers), state.isAnimated(), (float) bounds.minY, (float) bounds.getZsize());
+	}
+
+	private static boolean isSupported(ResolvedItemModel model) {
+		if (model.layers().isEmpty() || model.animated()) {
 			return false;
 		}
 
-		var overrides = model.getOverrides();
-		if (overrides != ItemOverrides.EMPTY) {
-			var properties = ((ItemOverridesAccessor) overrides).vanillin$properties();
-
-			for (var property : properties) {
-				if (!ALLOWED_OVERRIDES.contains(property)) {
-					return false;
-				}
+		for (var layer : model.layers()) {
+			if (layer.specialRenderer() || layer.tintLayers() != null && !layer.tintLayers().isEmpty() || layer.foilType() == ItemStackRenderState.FoilType.SPECIAL) {
+				return false;
 			}
 		}
-
-		// Check for class equality rather than instanceof to ensure subclasses are *not* handled by vanillin.
-		Class<? extends BakedModel> c = model.getClass();
-		if (!(c == SimpleBakedModel.class || c == MultiPartBakedModel.class || c == WeightedBakedModel.class)) {
-			return false;
-		}
-
 		return true;
 	}
 
-	public static Model get(Level level, ItemStack itemStack, ItemDisplayContext displayContext) {
-		boolean cull = displayContext == ItemDisplayContext.GUI || displayContext.firstPerson() || !(itemStack.getItem() instanceof BlockItem block) || !(block.getBlock() instanceof HalfTransparentBlock) && !(block.getBlock() instanceof StainedGlassPaneBlock);
-		var material = ModelUtil.getItemMaterial(ItemBlockRenderTypes.getRenderType(itemStack, cull));
-
-		if (material == null) {
-			material = Materials.TRANSLUCENT_ENTITY;
-		}
-
-		if (itemStack.getItem() instanceof BlockItem && material.transparency() == Transparency.TRANSLUCENT) {
-			material = SimpleMaterial.builderOf(material)
-					.transparency(Transparency.ORDER_INDEPENDENT)
-					.build();
-		}
-
-		// Visuals all hold references to Level so use that as the parameter type for convenience and cast here.
-		ClientLevel clientLevel = (level instanceof ClientLevel) ? (ClientLevel) level : null;
-
-		BakedModel model = getActualBakedModel(clientLevel, itemStack, displayContext);
-
-		if (model == null) {
-			return EMPTY_MODEL;
-		}
-
-		return MODEL_CACHE.get(new BakedModelKey(model, displayContext, material, itemStack.hasFoil()));
-	}
-
-	public static Model bakeModel(BakedModel model, ItemDisplayContext displayContext, Material material, boolean foil) {
-		var mesh = MESH_CACHE.get(new BakedMeshKey(model, displayContext));
-
-		if (foil) {
-			return new SimpleModel(List.of(new Model.ConfiguredMesh(material, mesh), new Model.ConfiguredMesh(Materials.GLINT, mesh)));
-		} else {
-			return new SingleMeshModel(mesh, material);
-		}
-	}
-
-	public static Mesh bakeMesh(BakedModel model, ItemDisplayContext displayContext) {
-		boolean leftHand = displayContext == ItemDisplayContext.FIRST_PERSON_LEFT_HAND || displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND;
-
-		var poseStack = new PoseStack();
-
-		model.getTransforms()
-				.getTransform(displayContext)
-				.apply(leftHand, poseStack);
-		poseStack.translate(-0.5f, -0.5f, -0.5f);
-
-		RandomSource randomSource = RandomSource.create();
-
-		// Write all BakedQuads into a list first to get a count so we can allocate memory ahead of time.
-		List<BakedQuad> allQuads = new ArrayList<>();
-		for (Direction value : DIRECTIONS) {
-			randomSource.setSeed(42L);
-			allQuads.addAll(model.getQuads(null, value, randomSource));
-		}
-
-		int vertexCount = allQuads.size() * 4;
-		var memoryBlock = MemoryBlock.mallocTracked(vertexCount * FullVertexView.STRIDE);
-		var meshVertices = new FullVertexView();
-
-		meshVertices.nativeMemoryOwner(memoryBlock);
-		meshVertices.ptr(memoryBlock.ptr());
-		meshVertices.vertexCount(vertexCount);
-
-		Vector4f position = new Vector4f();
-		Vector3f normal = new Vector3f();
-
-		Matrix4f poseMatrix = poseStack.last()
-				.pose();
-		Matrix3f normalMatrix = poseStack.last()
-				.normal();
-
-		try (MemoryStack memoryStack = MemoryStack.stackPush();) {
-			ByteBuffer byteBuffer = memoryStack.malloc(DefaultVertexFormat.BLOCK.getVertexSize());
-			IntBuffer intBuffer = byteBuffer.asIntBuffer();
-
-			int vertex = 0;
-
-			for (BakedQuad quad : allQuads) {
-				SodiumAnimatedTextureCompat.add(quad.getSprite());
-
-				int[] js = quad.getVertices();
-				var direction = quad.getDirection();
-
-				normal.set(direction.getStepX(), direction.getStepY(), direction.getStepZ());
-				normal.mul(normalMatrix);
-
-				int j = js.length / 8;
-
-				for (int k = 0; k < j; ++k) {
-					intBuffer.clear();
-					intBuffer.put(js, k * 8, 8);
-
-					position.set(byteBuffer.getFloat(0), byteBuffer.getFloat(4), byteBuffer.getFloat(8), 1.0f);
-					position.mul(poseMatrix);
-
-					// We could probably handle item colors here.
-					meshVertices.x(vertex, position.x());
-					meshVertices.y(vertex, position.y());
-					meshVertices.z(vertex, position.z());
-					meshVertices.r(vertex, 1.0f);
-					meshVertices.g(vertex, 1.0f);
-					meshVertices.b(vertex, 1.0f);
-					meshVertices.a(vertex, 1.0f);
-					meshVertices.u(vertex, byteBuffer.getFloat(16));
-					meshVertices.v(vertex, byteBuffer.getFloat(20));
-					meshVertices.overlay(vertex, OverlayTexture.NO_OVERLAY);
-					meshVertices.light(vertex, 0);
-					meshVertices.normalX(vertex, normal.x());
-					meshVertices.normalY(vertex, normal.y());
-					meshVertices.normalZ(vertex, normal.z());
-
-					vertex++;
+	private static Model bakeModel(ResolvedItemModel model) {
+		var configuredMeshes = new ArrayList<Model.ConfiguredMesh>();
+		for (var layer : model.layers()) {
+			Map<Material, List<BakedQuad>> quadsByMaterial = layer.quads().stream().collect(Collectors.groupingBy(quad -> materialFor(quad.materialInfo().itemRenderType())));
+			for (var entry : quadsByMaterial.entrySet()) {
+				var mesh = bakeMesh(entry.getValue(), layer.itemTransform(), layer.localTransform());
+				configuredMeshes.add(new Model.ConfiguredMesh(entry.getKey(), mesh));
+				if (layer.foilType() == ItemStackRenderState.FoilType.STANDARD) {
+					configuredMeshes.add(new Model.ConfiguredMesh(Materials.GLINT, mesh));
 				}
 			}
 		}
+		return new SimpleModel(configuredMeshes);
+	}
 
+	private static Material materialFor(RenderType renderType) {
+		var material = ModelUtil.getItemMaterial(renderType);
+		if (material == null) return Materials.TRANSLUCENT_ENTITY;
+		return material.transparency() == Transparency.TRANSLUCENT ? SimpleMaterial.builderOf(material).transparency(Transparency.ORDER_INDEPENDENT).build() : material;
+	}
+
+	private static Mesh bakeMesh(List<BakedQuad> quads, ItemTransform itemTransform, Matrix4f localTransform) {
+		var poseStack = new PoseStack();
+		itemTransform.apply(false, poseStack.last());
+		poseStack.last().mulPose(localTransform);
+		poseStack.translate(-0.5f, -0.5f, -0.5f);
+		var memoryBlock = MemoryBlock.mallocTracked(quads.size() * BakedQuad.VERTEX_COUNT * FullVertexView.STRIDE);
+		var meshVertices = new FullVertexView();
+		meshVertices.nativeMemoryOwner(memoryBlock);
+		meshVertices.ptr(memoryBlock.ptr());
+		meshVertices.vertexCount(quads.size() * BakedQuad.VERTEX_COUNT);
+		var position = new Vector4f();
+		var normal = new Vector3f();
+		Matrix4f poseMatrix = poseStack.last().pose();
+		Matrix3f normalMatrix = poseStack.last().normal();
+		int vertex = 0;
+		for (var quad : quads) {
+			SodiumAnimatedTextureCompat.add(quad.materialInfo().sprite());
+			Direction direction = quad.direction();
+			normal.set(direction.getStepX(), direction.getStepY(), direction.getStepZ()).mul(normalMatrix);
+			for (int i = 0; i < BakedQuad.VERTEX_COUNT; i++) {
+				Vector3fc sourcePosition = quad.position(i);
+				position.set(sourcePosition.x(), sourcePosition.y(), sourcePosition.z(), 1.0f).mul(poseMatrix);
+				long packedUv = quad.packedUV(i);
+				meshVertices.x(vertex, position.x()); meshVertices.y(vertex, position.y()); meshVertices.z(vertex, position.z());
+				meshVertices.r(vertex, 1.0f); meshVertices.g(vertex, 1.0f); meshVertices.b(vertex, 1.0f); meshVertices.a(vertex, 1.0f);
+				meshVertices.u(vertex, Float.intBitsToFloat((int) packedUv));
+				meshVertices.v(vertex, Float.intBitsToFloat((int) (packedUv >>> 32)));
+				meshVertices.overlay(vertex, 0); meshVertices.light(vertex, 0);
+				meshVertices.normalX(vertex, normal.x()); meshVertices.normalY(vertex, normal.y()); meshVertices.normalZ(vertex, normal.z());
+				vertex++;
+			}
+		}
 		return new SimpleQuadMesh(meshVertices);
 	}
 
-	public record BakedModelKey(BakedModel model, ItemDisplayContext displayContext, Material material, boolean foil) {
-
+	public record Geometry(float minY, float zSize) {
 	}
 
-	public record BakedMeshKey(BakedModel model, ItemDisplayContext displayContext) {
+	private record ResolvedItemModel(List<ResolvedLayer> layers, boolean animated, float minY, float zSize) {
+		private static final ResolvedItemModel EMPTY = new ResolvedItemModel(List.of(), false, 0, 0);
+	}
 
+	private record ResolvedLayer(List<BakedQuad> quads, ItemTransform itemTransform, Matrix4f localTransform, ItemStackRenderState.FoilType foilType, @Nullable List<Integer> tintLayers, boolean specialRenderer) {
 	}
 }

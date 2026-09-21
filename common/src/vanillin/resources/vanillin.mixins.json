@@ -5,7 +5,8 @@
   "compatibilityLevel" : "JAVA_21",
   "refmap" : "vanillin.refmap.json",
   "client" : [
-    "item.ItemOverridesAccessor"
+    "item.ItemStackRenderStateAccessor",
+    "item.ItemStackRenderStateLayerAccessor"
   ],
   "injectors" : {
     "defaultRequire" : 1

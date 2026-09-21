@@ -12,7 +12,6 @@ import dev.engine_room.flywheel.lib.visual.SimpleDynamicVisual;
 import dev.engine_room.flywheel.lib.visual.util.InstanceRecycler;
 import dev.engine_room.vanillin.item.ItemModels;
 import net.minecraft.util.LightCoordsUtil;
-import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -23,10 +22,10 @@ import net.minecraft.world.level.LightLayer;
 
 public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements SimpleDynamicVisual {
 
-	private static final ThreadLocal<RandomSource> RANDOM = ThreadLocal.withInitial(RandomSource::createNewThreadLocalInstance);
+	private static final ThreadLocal<RandomSource> RANDOM = ThreadLocal.withInitial(RandomSource::createThreadLocalInstance);
 
 	private final PoseStack pPoseStack = new PoseStack();
-	private BakedModel bakedModel;
+	private ItemModels.Geometry geometry;
 	private ItemStack currentStack;
 
 	private InstanceRecycler<TransformedInstance> instances;
@@ -35,7 +34,7 @@ public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements Simp
 		super(ctx, entity, partialTick);
 
 		currentStack = entity.getItem();
-		bakedModel = ItemModels.getModel(currentStack);
+		geometry = ItemModels.geometry(currentStack, ItemDisplayContext.GROUND, null);
 		var model =  ItemModels.get(level, currentStack, ItemDisplayContext.GROUND);
 		instances = new InstanceRecycler<>(() -> ctx.instancerProvider()
 				.instancer(InstanceTypes.TRANSFORMED, model)
@@ -66,7 +65,7 @@ public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements Simp
 		if (!ItemStack.matches(itemstack, currentStack)) {
 			instances.delete();
 			currentStack = itemstack.copy();
-			bakedModel = ItemModels.getModel(currentStack);
+			geometry = ItemModels.geometry(currentStack, ItemDisplayContext.GROUND, null);
 			var model =  ItemModels.get(level, currentStack, ItemDisplayContext.GROUND);
 			instances = new InstanceRecycler<>(() -> visualizationContext.instancerProvider()
 					.instancer(InstanceTypes.TRANSFORMED, model)
@@ -77,21 +76,14 @@ public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements Simp
 		int i = itemstack.isEmpty() ? 187 : Item.getId(itemstack.getItem()) + itemstack.getDamageValue();
 		var random = RANDOM.get();
 		random.setSeed(i);
-		boolean flag = bakedModel.isGui3d();
 		int j = this.getRenderAmount(itemstack);
-		float f = 0.25F;
 		float f1 = shouldBob() ? Mth.sin(((float) entity.getAge() + partialTick) / 10.0F + entity.bobOffs) * 0.1F + 0.1F : 0;
-		float groundScaleX = bakedModel.getTransforms().ground.scale.y();
-		float groundScaleY = bakedModel.getTransforms().ground.scale.y();
-		float groundScaleZ = bakedModel.getTransforms().ground.scale.y();
-		pPoseStack.translate(0.0F, f1 + 0.25F * groundScaleZ, 0.0F);
-		float f3 = entity.getSpin(partialTick);
+		pPoseStack.translate(0.0F, f1 - geometry.minY() + 0.0625F, 0.0F);
+		float f3 = ItemEntity.getSpin(entity.getAge() + partialTick, entity.bobOffs);
 		pPoseStack.mulPose(Axis.YP.rotation(f3));
-		if (!flag) {
-			float f7 = -0.0F * (float) (j - 1) * 0.5F * groundScaleX;
-			float f8 = -0.0F * (float) (j - 1) * 0.5F * groundScaleY;
-			float f9 = -0.09375F * (float) (j - 1) * 0.5F * groundScaleZ;
-			pPoseStack.translate(f7, f8, f9);
+		boolean threeDimensional = geometry.zSize() > 0.0625F;
+		if (!threeDimensional) {
+			pPoseStack.translate(0.0F, 0.0F, -geometry.zSize() * 1.5F * (j - 1) / 2.0F);
 		}
 
 		int light = LightCoordsUtil.pack(level.getBrightness(LightLayer.BLOCK, entity.blockPosition()), level.getBrightness(LightLayer.SKY, entity.blockPosition()));
@@ -99,7 +91,7 @@ public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements Simp
 		for (int k = 0; k < j; ++k) {
 			pPoseStack.pushPose();
 			if (k > 0) {
-				if (flag) {
+				if (threeDimensional) {
 					float f11 = (random.nextFloat() * 2.0F - 1.0F) * 0.15F;
 					float f13 = (random.nextFloat() * 2.0F - 1.0F) * 0.15F;
 					float f10 = (random.nextFloat() * 2.0F - 1.0F) * 0.15F;
@@ -116,8 +108,8 @@ public class ItemVisual extends AbstractEntityVisual<ItemEntity> implements Simp
 					.light(light)
 					.setChanged();
 			pPoseStack.popPose();
-			if (!flag) {
-				pPoseStack.translate(0.0, 0.0, 0.09375F * groundScaleZ);
+			if (!threeDimensional) {
+				pPoseStack.translate(0.0, 0.0, geometry.zSize() * 1.5F);
 			}
 		}
 
