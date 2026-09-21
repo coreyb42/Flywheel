@@ -1,6 +1,7 @@
 package dev.engine_room.flywheel.backend.engine.direct;
 
 import dev.engine_room.flywheel.backend.engine.CpuArena;
+import dev.engine_room.flywheel.lib.util.ExtraMemoryOps;
 import it.unimi.dsi.fastutil.objects.ReferenceLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ReferenceSet;
 
@@ -14,7 +15,11 @@ public final class DirectEnvironmentStorage {
 
 	public DirectEnvironmentStorage() {
 		// Matrix slot zero is the world/identity transform.
-		arena.alloc();
+		int world = arena.alloc();
+		if (world != 0) {
+			throw new IllegalStateException("The direct world transform must occupy matrix slot zero");
+		}
+		writeIdentity(arena.indexToPointer(world));
 	}
 
 	public void track(DirectEmbeddedEnvironment environment) {
@@ -49,5 +54,10 @@ public final class DirectEnvironmentStorage {
 	public void delete() {
 		environments.clear();
 		arena.delete();
+	}
+
+	private static void writeIdentity(long pointer) {
+		ExtraMemoryOps.putMatrix4f(pointer, new org.joml.Matrix4f());
+		ExtraMemoryOps.putMatrix3fPadded(pointer + 16L * Float.BYTES, new org.joml.Matrix3f());
 	}
 }

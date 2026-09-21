@@ -20,6 +20,7 @@ import dev.engine_room.flywheel.api.model.Model;
 import dev.engine_room.flywheel.api.task.Plan;
 import dev.engine_room.flywheel.backend.engine.LightStorage;
 import dev.engine_room.flywheel.backend.gpu.GpuDirectRenderPassManager;
+import dev.engine_room.flywheel.backend.gpu.GpuDirectEnvironmentUniforms;
 import dev.engine_room.flywheel.backend.gpu.GpuInstanceBufferAdapter;
 import dev.engine_room.flywheel.backend.gpu.GpuInstancedDrawPlan;
 import dev.engine_room.flywheel.backend.gpu.GpuMeshPoolAdapter;
@@ -40,6 +41,7 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 	private final Map<Key<?>, Entry<?>> entries = new ConcurrentHashMap<>();
 	private final GpuMeshPoolAdapter meshes = new GpuMeshPoolAdapter(() -> "Flywheel direct mesh stream");
 	private final GpuDirectRenderPassManager renderer = new GpuDirectRenderPassManager();
+	private final GpuDirectEnvironmentUniforms environmentUniforms = new GpuDirectEnvironmentUniforms();
 	private final DirectCrumblingPass crumbling = new DirectCrumblingPass(renderer);
 	private final PlanFactory plans;
 	private volatile boolean deleted;
@@ -69,6 +71,7 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 		ensureOpen();
 		List<Entry<?>> live = liveEntries();
 		if (live.isEmpty()) return;
+		environmentUniforms.sync(environments);
 		meshes.uploadMeshes(sourceMeshes(live));
 		List<GpuInstancedDrawPlan> drawPlans = preparePlans(context, lightStorage, environments, live, null);
 		if (!drawPlans.isEmpty()) renderer.submit(sceneTarget(), drawPlans);
@@ -79,8 +82,10 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 		ensureOpen();
 		List<Entry<?>> live = liveEntries();
 		if (live.isEmpty() || blocks.isEmpty()) return;
+		environmentUniforms.sync(environments);
 		meshes.uploadMeshes(sourceMeshes(live));
-		crumbling.submit(sceneTarget(), blocks, request -> plans.crumblingPlans(request, context, lightStorage, environments, live, meshes));
+		crumbling.submit(sceneTarget(), blocks, request -> plans.crumblingPlans(request, context, lightStorage, environments, live, meshes,
+				environmentUniforms.uniform()));
 	}
 
 	@Override
@@ -103,6 +108,7 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 		for (Entry<?> entry : entries.values()) entry.close();
 		entries.clear();
 		meshes.close();
+		environmentUniforms.close();
 	}
 
 	private List<GpuInstancedDrawPlan> preparePlans(RenderContext context, LightStorage lights, DirectEnvironmentStorage environments,
@@ -113,7 +119,8 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 			if (snapshot.instanceCount() == 0) continue;
 			for (Model.ConfiguredMesh configured : entry.key.model.meshes()) {
 				meshes.geometry(configured.mesh()).ifPresent(geometry -> {
-					GpuInstancedDrawPlan plan = plans.plan(new Request(entry, configured, geometry, snapshot, context, lights, environments));
+					GpuInstancedDrawPlan plan = plans.plan(new Request(entry, configured, geometry, snapshot, context, lights, environments,
+							environmentUniforms.uniform()));
 					if (plan != null) out.add(plan);
 				});
 			}
@@ -171,13 +178,15 @@ public final class GpuDirectDrawManager implements DirectDrawManager {
 
 	/** Complete inputs for one regular material mesh draw. */
 	public record Request(Entry<?> entry, Model.ConfiguredMesh configuredMesh, GpuMeshPoolAdapter.Geometry geometry,
-			GpuInstanceBufferAdapter.Snapshot snapshot, RenderContext context, LightStorage lights, DirectEnvironmentStorage environments) {
+			GpuInstanceBufferAdapter.Snapshot snapshot, RenderContext context, LightStorage lights, DirectEnvironmentStorage environments,
+			GpuInstancedDrawPlan.Uniform environmentUniform) {
 	}
 
 	/** Shader/pipeline layer which builds real plans from this manager's GPU streams. */
 	public interface PlanFactory {
 		GpuInstancedDrawPlan plan(Request request);
 		Collection<GpuInstancedDrawPlan> crumblingPlans(DirectCrumblingPass.Request request, RenderContext context,
-				LightStorage lights, DirectEnvironmentStorage environments, List<Entry<?>> entries, GpuMeshPoolAdapter meshes);
+				LightStorage lights, DirectEnvironmentStorage environments, List<Entry<?>> entries, GpuMeshPoolAdapter meshes,
+				GpuInstancedDrawPlan.Uniform environmentUniform);
 	}
 }
