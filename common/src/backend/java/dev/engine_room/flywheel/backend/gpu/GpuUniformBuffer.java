@@ -7,6 +7,7 @@ import java.util.function.Supplier;
 import org.jetbrains.annotations.Nullable;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 
@@ -52,6 +53,16 @@ public final class GpuUniformBuffer implements AutoCloseable {
 
 	/** Upload dirty data. Must be called when no render pass is open. */
 	public void upload() {
+		upload(RenderSystem.getDevice().createCommandEncoder());
+	}
+
+	/**
+	 * Upload dirty data through {@code encoder}. The encoder must not have an
+	 * open render pass. Sharing the encoder with the subsequent draw pass keeps
+	 * the upload-before-draw ordering explicit.
+	 */
+	public void upload(CommandEncoder encoder) {
+		Objects.requireNonNull(encoder, "encoder");
 		ensureBuffer();
 		if (!needsUpload) {
 			return;
@@ -59,7 +70,7 @@ public final class GpuUniformBuffer implements AutoCloseable {
 
 		ByteBuffer data = clientBuffer.asBuffer().duplicate();
 		data.clear();
-		RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.slice(), data);
+		encoder.writeToBuffer(buffer.slice(), data);
 		needsUpload = false;
 	}
 
