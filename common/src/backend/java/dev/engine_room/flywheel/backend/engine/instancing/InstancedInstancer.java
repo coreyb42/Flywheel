@@ -2,6 +2,7 @@ package dev.engine_room.flywheel.backend.engine.instancing;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -34,6 +35,38 @@ public class InstancedInstancer<I extends Instance> extends BaseInstancer<I> {
 
 	public List<InstancedDraw> draws() {
 		return draws;
+	}
+
+	/**
+	 * The byte stride used by the instance writer.
+	 *
+	 * <p>This includes the legacy sixteen-byte alignment padding. Keeping that
+	 * layout is required while migrated vertex pipelines consume the existing
+	 * instance types.</p>
+	 */
+	public int instanceStride() {
+		return instanceStride;
+	}
+
+	/**
+	 * Serialize a consistent snapshot of the current instances into CPU memory.
+	 *
+	 * <p>This is the public-GPU replacement for binding the legacy texture
+	 * buffer. Callers upload the resulting bytes to a vertex buffer before a
+	 * render pass begins.</p>
+	 *
+	 * @return the number of serialized instances
+	 */
+	public int writeInstances(MemoryBlock destination) {
+		Objects.requireNonNull(destination, "destination");
+		synchronized (lock) {
+			long required = Math.multiplyExact((long) instanceStride, instances.size());
+			if (destination.size() < required) {
+				throw new IllegalArgumentException("Instance destination is too small: requires " + required + " bytes, got " + destination.size());
+			}
+			writeAll(destination.ptr());
+			return instances.size();
+		}
 	}
 
 	public void init() {

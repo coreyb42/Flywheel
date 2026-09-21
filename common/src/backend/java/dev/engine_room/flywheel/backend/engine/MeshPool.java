@@ -155,6 +155,17 @@ public class MeshPool {
 			return mesh.vertexCount();
 		}
 
+		/**
+		 * The CPU mesh represented by this allocation.
+		 *
+		 * <p>The 26.2 renderer rebuilds its public GPU vertex and index streams
+		 * from this source data. It must not attempt to recover data from the
+		 * legacy OpenGL buffers owned by {@link MeshPool}.</p>
+		 */
+		public Mesh mesh() {
+			return mesh;
+		}
+
 		public int byteSize() {
 			return mesh.vertexCount() * InternalVertex.STRIDE;
 		}
