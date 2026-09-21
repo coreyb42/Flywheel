@@ -27,8 +27,9 @@ import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.decoration.ItemFrame;
-import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
@@ -68,20 +69,20 @@ public class VanillaVisuals {
 				.skipVanillaRender(ItemDisplayVisual::shouldVisualize)
 				.apply(EXPERIMENTAL);
 
-		minecart(EntityType.CHEST_MINECART, ModelLayers.CHEST_MINECART)
+		minecart(EntityTypes.CHEST_MINECART, ModelLayers.CHEST_MINECART)
 				.apply(STABLE);
-		minecart(EntityType.COMMAND_BLOCK_MINECART, ModelLayers.COMMAND_BLOCK_MINECART)
+		minecart(EntityTypes.COMMAND_BLOCK_MINECART, ModelLayers.COMMAND_BLOCK_MINECART)
 				.apply(STABLE);
-		minecart(EntityType.FURNACE_MINECART, ModelLayers.FURNACE_MINECART)
+		minecart(EntityTypes.FURNACE_MINECART, ModelLayers.FURNACE_MINECART)
 				.apply(STABLE);
-		minecart(EntityType.HOPPER_MINECART, ModelLayers.HOPPER_MINECART)
+		minecart(EntityTypes.HOPPER_MINECART, ModelLayers.HOPPER_MINECART)
 				.apply(STABLE);
-		minecart(EntityType.MINECART, ModelLayers.MINECART)
+		minecart(EntityTypes.MINECART, ModelLayers.MINECART)
 				.apply(STABLE);
-		minecart(EntityType.SPAWNER_MINECART, ModelLayers.SPAWNER_MINECART)
+		minecart(EntityTypes.SPAWNER_MINECART, ModelLayers.SPAWNER_MINECART)
 				.apply(STABLE);
 
-		composable(EntityType.TNT_MINECART).apply(VanillaVisuals::commonElements)
+		composable(EntityTypes.TNT_MINECART).apply(VanillaVisuals::commonElements)
 				.with(element(VisualElements.SHADOW).configure(new ShadowElement.Config(0.7f, ShadowElement.Config.DEFAULT_STRENGTH))
 						.build())
 				.with(element(VisualElements.FIRE).build())

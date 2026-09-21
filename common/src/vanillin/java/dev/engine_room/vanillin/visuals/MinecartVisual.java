@@ -21,13 +21,15 @@ import dev.engine_room.flywheel.lib.visual.SimpleTickableVisual;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.minecart.NewMinecartBehavior;
+import net.minecraft.world.entity.vehicle.minecart.OldMinecartBehavior;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVisual<T> implements SimpleTickableVisual, SimpleDynamicVisual {
-	private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/entity/minecart.png");
+	private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/entity/minecart/minecart.png");
 	private static final Material MATERIAL = SimpleMaterial.builder()
 			.texture(TEXTURE)
 			.mipmap(false)
@@ -55,11 +57,6 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 	@Nullable
 	private TransformedInstance createContentsInstance() {
 		RenderShape shape = blockState.getRenderShape();
-
-		if (shape == RenderShape.ENTITYBLOCK_ANIMATED) {
-			instances.visible(false);
-			return null;
-		}
 
 		if (shape == RenderShape.INVISIBLE) {
 			return null;
@@ -101,10 +98,24 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 		double posX = Mth.lerp(partialTick, entity.xOld, entity.getX());
 		double posY = Mth.lerp(partialTick, entity.yOld, entity.getY());
 		double posZ = Mth.lerp(partialTick, entity.zOld, entity.getZ());
+		float yaw = Mth.lerp(partialTick, entity.yRotO, entity.getYRot());
+		float pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
+
+		// Minecart motion is now delegated to one of two behavior implementations.
+		// Mirror vanilla's renderer so both the experimental and legacy movement
+		// systems use their authoritative interpolated render transform.
+		var behavior = entity.getBehavior();
+		if (behavior instanceof NewMinecartBehavior newBehavior && newBehavior.cartHasPosRotLerp()) {
+			Vec3 renderPos = newBehavior.getCartLerpPosition(partialTick);
+			posX = renderPos.x;
+			posY = renderPos.y;
+			posZ = renderPos.z;
+			yaw = newBehavior.getCartLerpYRot(partialTick);
+			pitch = newBehavior.getCartLerpXRot(partialTick);
+		}
 
 		var renderOrigin = renderOrigin();
 		stack.translate((float) (posX - renderOrigin.getX()), (float) (posY - renderOrigin.getY()), (float) (posZ - renderOrigin.getZ()));
-		float yaw = Mth.lerp(partialTick, entity.yRotO, entity.yRot());
 
 		long randomBits = entity.getId() * 493286711L;
 		randomBits = randomBits * randomBits * 4392167121L + randomBits * 98761L;
@@ -113,26 +124,27 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 		float nudgeZ = (((float) (randomBits >> 24 & 7L) + 0.5f) / 8.0f - 0.5F) * 0.004f;
 		stack.translate(nudgeX, nudgeY, nudgeZ);
 
-		Vec3 pos = entity.getPos(posX, posY, posZ);
-		float pitch = Mth.lerp(partialTick, entity.xRotO, entity.xRot());
-		if (pos != null) {
-			Vec3 offset1 = entity.getPosOffs(posX, posY, posZ, 0.3F);
-			Vec3 offset2 = entity.getPosOffs(posX, posY, posZ, -0.3F);
+		if (behavior instanceof OldMinecartBehavior oldBehavior) {
+			Vec3 pos = oldBehavior.getPos(posX, posY, posZ);
+			if (pos != null) {
+				Vec3 offset1 = oldBehavior.getPosOffs(posX, posY, posZ, 0.3F);
+				Vec3 offset2 = oldBehavior.getPosOffs(posX, posY, posZ, -0.3F);
 
-			if (offset1 == null) {
-				offset1 = pos;
-			}
+				if (offset1 == null) {
+					offset1 = pos;
+				}
 
-			if (offset2 == null) {
-				offset2 = pos;
-			}
+				if (offset2 == null) {
+					offset2 = pos;
+				}
 
-			stack.translate((float) (pos.x - posX), (float) ((offset1.y + offset2.y) / 2.0D - posY), (float) (pos.z - posZ));
-			Vec3 vec = offset2.add(-offset1.x, -offset1.y, -offset1.z);
-			if (vec.length() != 0.0D) {
-				vec = vec.normalize();
-				yaw = (float) (Math.atan2(vec.z, vec.x) * 180.0D / Math.PI);
-				pitch = (float) (Math.atan(vec.y) * 73.0D);
+				stack.translate((float) (pos.x - posX), (float) ((offset1.y + offset2.y) / 2.0D - posY), (float) (pos.z - posZ));
+				Vec3 vec = offset2.add(-offset1.x, -offset1.y, -offset1.z);
+				if (vec.length() != 0.0D) {
+					vec = vec.normalize();
+					yaw = (float) (Math.atan2(vec.z, vec.x) * 180.0D / Math.PI);
+					pitch = (float) (Math.atan(vec.y) * 73.0D);
+				}
 			}
 		}
 
@@ -191,6 +203,9 @@ public class MinecartVisual<T extends AbstractMinecart> extends AbstractEntityVi
 	}
 
 	public static boolean shouldSkipRender(AbstractMinecart minecart) {
-		return minecart.getDisplayBlockState().getRenderShape() != RenderShape.ENTITYBLOCK_ANIMATED;
+		// Animated block-entity minecart payloads were removed from the block render
+		// shape API. Every remaining payload is either a model handled above or
+		// invisible, so the visual owns the complete minecart render.
+		return true;
 	}
 }
