@@ -10,9 +10,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import com.mojang.blaze3d.vertex.PoseStack;
 
 import dev.engine_room.flywheel.api.visualization.VisualizationManager;
 import dev.engine_room.flywheel.impl.FlwImplXplat;
@@ -24,8 +23,9 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.util.LightCoordsUtil;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderBuffers;
 import net.minecraft.server.level.BlockDestructionProgress;
 import net.minecraft.world.entity.Entity;
@@ -91,10 +91,15 @@ abstract class LevelRendererMixin {
 		}
 	}
 
-	@Inject(method = "renderEntity", at = @At("HEAD"), cancellable = true)
-	private void flywheel$decideNotToRenderEntity(Entity entity, double camX, double camY, double camZ, float partialTick, PoseStack poseStack, MultiBufferSource bufferSource, CallbackInfo ci) {
-		if (VisualizationManager.supportsVisualization(entity.level()) && VisualizationHelper.skipVanillaRender(entity)) {
-			ci.cancel();
-		}
+	/**
+	 * Entity rendering was split into extraction and submission in 26.2; the
+	 * old renderEntity hook and MultiBufferSource no longer exist. Exclude
+	 * visualized entities at culling/extraction time so no vanilla render state
+	 * is produced for Flywheel-owned visuals.
+	 */
+	@Redirect(method = "extractVisibleEntities", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;shouldRender(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/culling/Frustum;DDD)Z"))
+	private boolean flywheel$shouldExtractEntity(EntityRenderDispatcher dispatcher, Entity entity, Frustum frustum, double camX, double camY, double camZ) {
+		return !(VisualizationManager.supportsVisualization(entity.level()) && VisualizationHelper.skipVanillaRender(entity))
+				&& dispatcher.shouldRender(entity, frustum, camX, camY, camZ);
 	}
 }
