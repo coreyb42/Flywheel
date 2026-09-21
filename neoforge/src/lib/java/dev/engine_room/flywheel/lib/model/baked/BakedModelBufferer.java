@@ -4,151 +4,102 @@ import java.util.Iterator;
 
 import org.jetbrains.annotations.Nullable;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import dev.engine_room.flywheel.lib.model.SimpleModel;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockModelLighter;
+import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
-import net.neoforged.neoforge.client.ChunkRenderTypeSet;
-import net.neoforged.neoforge.client.model.data.ModelData;
-import net.neoforged.neoforge.common.util.TriState;
 
 final class BakedModelBufferer {
 	private static final ThreadLocal<ThreadLocalObjects> THREAD_LOCAL_OBJECTS = ThreadLocal.withInitial(ThreadLocalObjects::new);
 
-	private BakedModelBufferer() {
+	private BakedModelBufferer() {}
+
+	public static SimpleModel bufferModel(BlockStateModel model, BlockPos pos, BlockAndTintGetter level, BlockState state, @Nullable PoseStack poseStack, BlockMaterialFunction materialFunction) {
+		ThreadLocalObjects objects = THREAD_LOCAL_OBJECTS.get();
+		poseStack = poseStack == null ? objects.identityPoseStack : poseStack;
+		objects.emitters.prepare(materialFunction);
+		objects.emitters.prepareForBlock();
+		objects.emitter.prepareForBlock(poseStack);
+		objects.blockRenderer.tesselateBlock(objects.emitter, 0, 0, 0, level, pos, state, model, state.getSeed(pos));
+		return objects.emitters.end();
 	}
 
-	public static SimpleModel bufferModel(BakedModel model, BlockPos pos, BlockAndTintGetter level, BlockState state, @Nullable PoseStack poseStack, BlockMaterialFunction blockMaterialFunction) {
+	public static SimpleModel bufferBlocks(Iterator<BlockPos> positions, BlockAndTintGetter level, @Nullable PoseStack poseStack, boolean renderFluids, BlockMaterialFunction materialFunction) {
 		ThreadLocalObjects objects = THREAD_LOCAL_OBJECTS.get();
-		if (poseStack == null) {
-			poseStack = objects.identityPoseStack;
-		}
-		RandomSource random = objects.random;
-		MeshEmitterManager<NeoforgeMeshEmitter> emitters = objects.emitters;
-
-		emitters.prepare(blockMaterialFunction);
-
-		ModelBlockRenderer blockRenderer = Minecraft.getInstance()
-				.getBlockRenderer()
-				.getModelRenderer();
-
-		long seed = state.getSeed(pos);
-		ModelData modelData = model.getModelData(level, pos, state, level.getModelData(pos));
-		random.setSeed(seed);
-		ChunkRenderTypeSet renderTypes = model.getRenderTypes(state, random, modelData);
-
-		// See ModelBlockRenderer#tesselateBlock
-		boolean defaultAo = state.getLightEmission(level, pos) == 0;
-		boolean aoEnabled = Minecraft.useAmbientOcclusion();
-
-		for (RenderType renderType : renderTypes) {
-			TriState useAo = model.useAmbientOcclusion(state, modelData, renderType);
-
-			boolean defaultAoLayer = aoEnabled && (useAo.isTrue() || (useAo.isDefault() && defaultAo));
-
-			NeoforgeMeshEmitter emitter = emitters.getEmitter(renderType);
-			emitter.prepareForModelLayer(defaultAoLayer);
-
-			poseStack.pushPose();
-			blockRenderer.tesselateBlock(level, model, state, pos, poseStack, emitter, false, random, seed, OverlayTexture.NO_OVERLAY, modelData, renderType);
-			poseStack.popPose();
-		}
-
-		return emitters.end();
-	}
-
-	public static SimpleModel bufferBlocks(Iterator<BlockPos> posIterator, BlockAndTintGetter level, @Nullable PoseStack poseStack, boolean renderFluids, BlockMaterialFunction blockMaterialFunction) {
-		ThreadLocalObjects objects = THREAD_LOCAL_OBJECTS.get();
-		if (poseStack == null) {
-			poseStack = objects.identityPoseStack;
-		}
-		RandomSource random = objects.random;
-		MeshEmitterManager<NeoforgeMeshEmitter> emitters = objects.emitters;
-		TransformingVertexConsumer transformingWrapper = objects.transformingWrapper;
-
-		emitters.prepare(blockMaterialFunction);
-
-		BlockRenderDispatcher renderDispatcher = Minecraft.getInstance()
-				.getBlockRenderer();
-		ModelBlockRenderer blockRenderer = renderDispatcher.getModelRenderer();
-		ModelBlockRenderer.enableCaching();
-
-		boolean aoEnabled = Minecraft.useAmbientOcclusion();
-
-		while (posIterator.hasNext()) {
-			BlockPos pos = posIterator.next();
-			BlockState state = level.getBlockState(pos);
-
-			emitters.prepareForBlock();
-
-			if (renderFluids) {
-				FluidState fluidState = state.getFluidState();
-
-				if (!fluidState.isEmpty()) {
-					RenderType renderType = ItemBlockRenderTypes.getRenderLayer(fluidState);
-
-					BufferBuilder bufferBuilder = emitters.getBuffer(renderType, true, false);
-
-					if (bufferBuilder != null) {
-						transformingWrapper.prepare(bufferBuilder, poseStack);
-
-						poseStack.pushPose();
-						poseStack.translate(pos.getX() - (pos.getX() & 0xF), pos.getY() - (pos.getY() & 0xF), pos.getZ() - (pos.getZ() & 0xF));
-						renderDispatcher.renderLiquid(pos, level, transformingWrapper, state, fluidState);
-						poseStack.popPose();
+		poseStack = poseStack == null ? objects.identityPoseStack : poseStack;
+		objects.emitters.prepare(materialFunction);
+		BlockModelLighter.enableCaching();
+		try {
+			while (positions.hasNext()) {
+				BlockPos pos = positions.next();
+				BlockState state = level.getBlockState(pos);
+				objects.emitters.prepareForBlock();
+				if (renderFluids) {
+					FluidState fluid = state.getFluidState();
+					if (!fluid.isEmpty()) {
+						objects.fluidOutput.prepare(objects.emitters, poseStack);
+						objects.fluidRenderer.tesselate(level, pos, objects.fluidOutput, state, fluid);
 					}
 				}
-			}
-
-			if (state.getRenderShape() == RenderShape.MODEL) {
-				long seed = state.getSeed(pos);
-				BakedModel model = renderDispatcher.getBlockModel(state);
-				ModelData modelData = model.getModelData(level, pos, state, level.getModelData(pos));
-				random.setSeed(seed);
-				ChunkRenderTypeSet renderTypes = model.getRenderTypes(state, random, modelData);
-
-				// See ModelBlockRenderer#tesselateBlock
-				boolean defaultAo = state.getLightEmission(level, pos) == 0;
-
-				for (RenderType renderType : renderTypes) {
-					TriState useAo = model.useAmbientOcclusion(state, modelData, renderType);
-
-					boolean defaultAoLayer = aoEnabled && (useAo.isTrue() || (useAo.isDefault() && defaultAo));
-
-					NeoforgeMeshEmitter emitter = emitters.getEmitter(renderType);
-					emitter.prepareForModelLayer(defaultAoLayer);
-
-					poseStack.pushPose();
-					poseStack.translate(pos.getX(), pos.getY(), pos.getZ());
-					blockRenderer.tesselateBlock(level, model, state, pos, poseStack, emitter, true, random, seed, OverlayTexture.NO_OVERLAY, modelData, renderType);
-					poseStack.popPose();
+				if (state.getRenderShape() == RenderShape.MODEL) {
+					objects.emitter.prepareForBlock(poseStack);
+					BlockStateModel model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
+					objects.blockRenderer.tesselateBlock(objects.emitter, pos.getX(), pos.getY(), pos.getZ(), level, pos, state, model, state.getSeed(pos));
 				}
 			}
+		} finally {
+			BlockModelLighter.clearCache();
+			objects.fluidOutput.clear();
 		}
-
-		ModelBlockRenderer.clearCache();
-		transformingWrapper.clear();
-		return emitters.end();
+		return objects.emitters.end();
 	}
 
 	private static class ThreadLocalObjects {
-		public final PoseStack identityPoseStack = new PoseStack();
-		public final RandomSource random = RandomSource.createNewThreadLocalInstance();
+		final PoseStack identityPoseStack = new PoseStack();
+		final MeshEmitterManager<NeoforgeMeshEmitter> emitters = new MeshEmitterManager<>(NeoforgeMeshEmitter::new);
+		final NeoforgeMeshEmitter emitter = emitters.getEmitter(ChunkSectionLayer.SOLID);
+		final ModelBlockRenderer blockRenderer = new ModelBlockRenderer(Minecraft.getInstance().options.ambientOcclusion().get(), true, Minecraft.getInstance().getBlockColors());
+		final FluidRenderer fluidRenderer = new FluidRenderer(Minecraft.getInstance().getModelManager().getFluidStateModelSet());
+		final FluidOutput fluidOutput = new FluidOutput();
+	}
 
-		public final MeshEmitterManager<NeoforgeMeshEmitter> emitters = new MeshEmitterManager<>(NeoforgeMeshEmitter::new);
-		public final TransformingVertexConsumer transformingWrapper = new TransformingVertexConsumer();
+	private static class FluidOutput implements FluidRenderer.Output {
+		private final TransformingVertexConsumer transforming = new TransformingVertexConsumer();
+		private MeshEmitterManager<NeoforgeMeshEmitter> emitters;
+		private PoseStack poseStack;
+
+		void prepare(MeshEmitterManager<NeoforgeMeshEmitter> emitters, PoseStack poseStack) { this.emitters = emitters; this.poseStack = poseStack; }
+		void clear() { transforming.clear(); emitters = null; poseStack = null; }
+
+		@Override
+		public VertexConsumer getBuilder(ChunkSectionLayer layer) {
+			var buffer = emitters.getBuffer(layer, true, false);
+			if (buffer == null) return DiscardingVertexConsumer.INSTANCE;
+			transforming.prepare(buffer, poseStack);
+			return transforming;
+		}
+	}
+
+	private enum DiscardingVertexConsumer implements VertexConsumer {
+		INSTANCE;
+		@Override public VertexConsumer addVertex(float x, float y, float z) { return this; }
+		@Override public VertexConsumer setColor(int red, int green, int blue, int alpha) { return this; }
+		@Override public VertexConsumer setColor(int color) { return this; }
+		@Override public VertexConsumer setUv(float u, float v) { return this; }
+		@Override public VertexConsumer setUv1(int u, int v) { return this; }
+		@Override public VertexConsumer setUv2(int u, int v) { return this; }
+		@Override public VertexConsumer setNormal(float x, float y, float z) { return this; }
+		@Override public VertexConsumer setLineWidth(float width) { return this; }
 	}
 }
