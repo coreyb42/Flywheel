@@ -73,7 +73,7 @@ public final class FlywheelFabric implements ClientModInitializer {
 		EndClientResourceReloadCallback.EVENT.register((minecraft, resourceManager, initialReload, error) -> ResourceReloadHolder.onEndClientResourceReload());
 
 		ModelLoadingPlugin.register(ctx -> {
-			ctx.addModels(PartialModelEventHandler.onRegisterAdditional());
+			PartialModelEventHandler.register(ctx);
 		});
 		ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(PartialModelEventHandler.ReloadListener.INSTANCE);
 	}
