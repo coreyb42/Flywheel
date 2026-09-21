@@ -76,6 +76,23 @@ have been tested. Performance optimizations follow correct resource ownership
 and visuals; none may reintroduce direct access to Minecraft's private GPU
 objects.
 
+## Backend-selection gate
+
+Backend selection is capability-driven during the migration. The retained
+`flywheel:instancing` and `flywheel:indirect` IDs are explicitly unavailable on
+26.2: their previous implementations require the removed stateful OpenGL and
+compute APIs. They remain registered only so existing configuration files get a
+normal fallback and a diagnostic instead of an invalid-config failure; neither
+can be selected.
+
+`flywheel:direct` is the only planned built-in renderer for 26.2. It is also
+unavailable until the complete direct renderer installs its engine factory
+through `BackendCapabilities.installDirectRenderer`. Registering pipeline or
+buffer helper classes alone must not make it selectable. Startup logs the
+specific unavailable capability, and the default-backend resolver chooses the
+highest-priority *supported* backend, which is `flywheel:off` until direct
+rendering is integrated.
+
 ## Indirect backend audit and migration gate
 
 The old `IndirectDrawManager`, `IndirectCullingGroup`, and `DepthPyramid`

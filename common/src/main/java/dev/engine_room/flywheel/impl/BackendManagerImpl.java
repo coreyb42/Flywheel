@@ -41,13 +41,14 @@ public final class BackendManagerImpl {
 
 	public static Backend defaultBackend() {
 		var backendsByPriority = backendsByPriority();
-		if (backendsByPriority.isEmpty()) {
-			// This probably shouldn't happen, but fail gracefully.
-			FlwImpl.LOGGER.warn("No backends registered, defaulting to 'flywheel:off'");
-			return OFF_BACKEND;
+		for (Backend backend : backendsByPriority) {
+			if (backend.isSupported()) {
+				return backend;
+			}
 		}
 
-		return backendsByPriority.get(0);
+		FlwImpl.LOGGER.warn("No enabled Flywheel renderer backend, defaulting to 'flywheel:off'");
+		return OFF_BACKEND;
 	}
 
 	private static void chooseBackend() {

@@ -1,48 +1,59 @@
 package dev.engine_room.flywheel.backend;
 
 import dev.engine_room.flywheel.api.backend.Backend;
-import dev.engine_room.flywheel.backend.compile.IndirectPrograms;
-import dev.engine_room.flywheel.backend.compile.InstancingPrograms;
-import dev.engine_room.flywheel.backend.engine.EngineImpl;
-import dev.engine_room.flywheel.backend.engine.indirect.IndirectDrawManager;
-import dev.engine_room.flywheel.backend.engine.instancing.InstancedDrawManager;
-import dev.engine_room.flywheel.backend.gl.Driver;
-import dev.engine_room.flywheel.backend.gl.GlCompat;
 import dev.engine_room.flywheel.lib.backend.SimpleBackend;
 import dev.engine_room.flywheel.lib.util.ResourceUtil;
-import dev.engine_room.flywheel.lib.util.ShadersModHelper;
 
 public final class Backends {
 	/**
-	 * Use GPU instancing to render everything.
+	 * The pre-26.2 OpenGL instancing renderer.
+	 *
+	 * @deprecated This ID is retained so existing configurations fall back with a
+	 * clear diagnostic. It can never be selected on Minecraft 26.2.
 	 */
+	@Deprecated(forRemoval = true)
 	public static final Backend INSTANCING = SimpleBackend.builder()
-			.engineFactory(level -> new EngineImpl(level, new InstancedDrawManager(InstancingPrograms.get()), 256))
 			.priority(500)
-			.supported(() -> GlCompat.SUPPORTS_INSTANCING && InstancingPrograms.allLoaded() && !ShadersModHelper.isShaderPackInUse())
+			.engineFactory(level -> unavailable(BackendCapabilities.Feature.LEGACY_GL_INSTANCING))
+			.supported(() -> BackendCapabilities.state(BackendCapabilities.Feature.LEGACY_GL_INSTANCING).available())
 			.register(ResourceUtil.rl("instancing"));
 
 	/**
-	 * Use Compute shaders to cull instances.
+	 * The pre-26.2 OpenGL compute/indirect renderer.
+	 *
+	 * @deprecated This ID is retained so existing configurations fall back with a
+	 * clear diagnostic. It can never be selected on Minecraft 26.2.
 	 */
+	@Deprecated(forRemoval = true)
 	public static final Backend INDIRECT = SimpleBackend.builder()
-			.engineFactory(level -> new EngineImpl(level, new IndirectDrawManager(IndirectPrograms.get()), 256))
-			.priority(() -> {
-				// Read from GlCompat in these provider because loading GlCompat
-				// at the same time the backends are registered causes GlCapabilities to be null.
-				if (GlCompat.DRIVER == Driver.INTEL) {
-					// Intel has very poor performance with indirect rendering, and on top of that has graphics bugs
-					return 1;
-				} else {
-					return 1000;
-				}
-			})
-			.supported(() -> GlCompat.SUPPORTS_INDIRECT && IndirectPrograms.allLoaded() && !ShadersModHelper.isShaderPackInUse())
+			.priority(1000)
+			.engineFactory(level -> unavailable(BackendCapabilities.Feature.LEGACY_GL_INDIRECT))
+			.supported(() -> BackendCapabilities.state(BackendCapabilities.Feature.LEGACY_GL_INDIRECT).available())
 			.register(ResourceUtil.rl("indirect"));
+
+	/**
+	 * The native 26.2 renderer. It remains unavailable until its complete engine
+	 * implementation calls {@link BackendCapabilities#installDirectRenderer}.
+	 */
+	public static final Backend DIRECT = SimpleBackend.builder()
+			.priority(1500)
+			.engineFactory(BackendCapabilities::createDirectEngine)
+			.supported(() -> BackendCapabilities.state(BackendCapabilities.Feature.GPU_DIRECT_RENDERER).available())
+			.register(ResourceUtil.rl("direct"));
 
 	private Backends() {
 	}
 
 	public static void init() {
+		for (BackendCapabilities.Feature feature : BackendCapabilities.Feature.values()) {
+			var state = BackendCapabilities.state(feature);
+			if (!state.available()) {
+				FlwBackend.LOGGER.warn("Flywheel backend feature '{}' is unavailable: {}", feature, state.detail());
+			}
+		}
+	}
+
+	private static <T> T unavailable(BackendCapabilities.Feature feature) {
+		throw new IllegalStateException(BackendCapabilities.state(feature).detail());
 	}
 }
