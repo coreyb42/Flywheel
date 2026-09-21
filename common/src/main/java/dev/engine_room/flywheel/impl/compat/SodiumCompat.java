@@ -1,12 +1,14 @@
 package dev.engine_room.flywheel.impl.compat;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
 import org.jetbrains.annotations.Nullable;
 
 import dev.engine_room.flywheel.api.visualization.BlockEntityVisualizer;
 import dev.engine_room.flywheel.impl.FlwImpl;
 import dev.engine_room.flywheel.lib.visualization.VisualizationHelper;
-import net.caffeinemc.mods.sodium.api.blockentity.BlockEntityRenderHandler;
-import net.caffeinemc.mods.sodium.api.blockentity.BlockEntityRenderPredicate;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
@@ -48,13 +50,43 @@ public final class SodiumCompat {
 
 	private static final class Internals {
 		static <T extends BlockEntity> Object addPredicate(BlockEntityType<T> type) {
-			BlockEntityRenderPredicate<T> predicate = (getter, pos, be) -> !VisualizationHelper.tryAddBlockEntity(be);
-			BlockEntityRenderHandler.instance().addRenderPredicate(type, predicate);
+			Object predicate = createPredicate();
+			invokeHandlerMethod("addRenderPredicate", type, predicate);
 			return predicate;
 		}
 
 		static <T extends BlockEntity> void removePredicate(BlockEntityType<T> type, Object predicate) {
-			BlockEntityRenderHandler.instance().removeRenderPredicate(type, (BlockEntityRenderPredicate<T>) predicate);
+			invokeHandlerMethod("removeRenderPredicate", type, predicate);
+		}
+
+		private static Object createPredicate() {
+			try {
+				ClassLoader classLoader = SodiumCompat.class.getClassLoader();
+				Class<?> predicateClass = Class.forName("net.caffeinemc.mods.sodium.api.blockentity.BlockEntityRenderPredicate", true, classLoader);
+				InvocationHandler handler = (proxy, method, args) -> switch (method.getName()) {
+					case "shouldRender" -> !VisualizationHelper.tryAddBlockEntity((BlockEntity) args[2]);
+					case "toString" -> "Flywheel Sodium visualization predicate";
+					case "hashCode" -> System.identityHashCode(proxy);
+					case "equals" -> proxy == args[0];
+					default -> throw new UnsupportedOperationException(method.toString());
+				};
+				return Proxy.newProxyInstance(classLoader, new Class<?>[] {predicateClass}, handler);
+			} catch (ReflectiveOperationException e) {
+				throw new IllegalStateException("Sodium is present but its block entity rendering API is unavailable", e);
+			}
+		}
+
+		private static void invokeHandlerMethod(String methodName, BlockEntityType<?> type, Object predicate) {
+			try {
+				ClassLoader classLoader = SodiumCompat.class.getClassLoader();
+				Class<?> handlerClass = Class.forName("net.caffeinemc.mods.sodium.api.blockentity.BlockEntityRenderHandler", true, classLoader);
+				Class<?> predicateClass = Class.forName("net.caffeinemc.mods.sodium.api.blockentity.BlockEntityRenderPredicate", true, classLoader);
+				Object handler = handlerClass.getMethod("instance").invoke(null);
+				Method method = handlerClass.getMethod(methodName, BlockEntityType.class, predicateClass);
+				method.invoke(handler, type, predicate);
+			} catch (ReflectiveOperationException e) {
+				throw new IllegalStateException("Failed to invoke Sodium's block entity rendering API", e);
+			}
 		}
 	}
 }

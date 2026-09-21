@@ -16,14 +16,17 @@ import dev.engine_room.flywheel.lib.util.RendererReloadCache;
 import dev.engine_room.flywheel.lib.util.ResourceReloadHolder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.synchronization.ArgumentTypeInfos;
+import net.minecraft.client.gui.components.debug.DebugScreenEntryStatus;
+import net.minecraft.client.gui.components.debug.DebugScreenProfile;
+import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.CrashReportCallables;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.RegisterDebugEntriesEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
@@ -68,14 +71,15 @@ public final class FlywheelNeoForge {
 
 		gameEventBus.addListener(FlwCommands::registerClientCommands);
 
-		gameEventBus.addListener((CustomizeGuiOverlayEvent.DebugText e) -> {
-			Minecraft minecraft = Minecraft.getInstance();
 
-			if (!minecraft.getDebugOverlay().showDebugScreen()) {
-				return;
-			}
-
-			FlwDebugInfo.addDebugInfo(minecraft, e.getRight());
+		modEventBus.addListener((RegisterDebugEntriesEvent e) -> {
+			Identifier id = Identifier.fromNamespaceAndPath(Flywheel.ID, "status");
+			e.register(id, (displayer, level, clientChunk, serverChunk) -> {
+				var lines = new java.util.ArrayList<String>();
+				FlwDebugInfo.addDebugInfo(Minecraft.getInstance(), lines);
+				lines.forEach(displayer::addLine);
+			});
+			e.includeInProfile(id, DebugScreenProfile.DEFAULT, DebugScreenEntryStatus.ALWAYS_ON);
 		});
 
 		modEventBus.addListener((EndClientResourceReloadEvent e) -> BackendManagerImpl.onEndClientResourceReload(e.error().isPresent()));
@@ -102,8 +106,8 @@ public final class FlywheelNeoForge {
 	private static void registerBackendEventListeners(IEventBus gameEventBus, IEventBus modEventBus) {
 		gameEventBus.addListener((ReloadLevelRendererEvent e) -> Uniforms.onReloadLevelRenderer());
 
-		modEventBus.addListener((RegisterClientReloadListenersEvent e) -> {
-			e.registerReloadListener(FlwProgramsReloader.INSTANCE);
+		modEventBus.addListener((AddClientReloadListenersEvent e) -> {
+			e.addListener(Identifier.fromNamespaceAndPath(Flywheel.ID, "programs"), FlwProgramsReloader.INSTANCE);
 		});
 	}
 
