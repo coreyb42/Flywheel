@@ -55,6 +55,9 @@ public final class GpuPipelineCompiler {
 				.withColorTargetState(definition.materialState().colorTargetState(definition.colorFormat()));
 
 		definition.materialState().depthStencilState().ifPresent(builder::withDepthStencilState);
+		if (definition.instanceVertexFormat() != null) {
+			builder.withVertexBinding(1, definition.instanceVertexFormat().vertexFormat());
+		}
 		definition.bindGroups().forEach(builder::withBindGroupLayout);
 
 		RenderPipeline pipeline = builder.build();
@@ -100,6 +103,7 @@ public final class GpuPipelineCompiler {
 			Identifier vertexShader,
 			Identifier fragmentShader,
 			VertexFormat vertexFormat,
+			GpuInstanceVertexFormat instanceVertexFormat,
 			PrimitiveTopology topology,
 			MaterialPipelineState materialState,
 			GpuFormat colorFormat,
