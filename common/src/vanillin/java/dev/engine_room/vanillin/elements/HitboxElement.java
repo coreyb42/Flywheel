@@ -107,9 +107,7 @@ public final class HitboxElement implements Visual, SimpleDynamicVisual {
 	public void animate(float partialTick) {
 		recycler.resetCount();
 
-		var shouldRenderHitBoxes = Minecraft.getInstance()
-				.getEntityRenderDispatcher()
-				.shouldRenderHitBoxes();
+		var shouldRenderHitBoxes = Minecraft.getInstance().options.keyDebugShowHitboxes.isDown();
 		if (shouldRenderHitBoxes && !entity.isInvisible() && !Minecraft.getInstance()
 				.showOnlyReducedInfo()) {
 			double entityX = Mth.lerp(partialTick, entity.xOld, entity.getX());

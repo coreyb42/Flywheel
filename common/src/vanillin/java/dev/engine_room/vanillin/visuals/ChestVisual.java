@@ -1,6 +1,5 @@
 package dev.engine_room.vanillin.visuals;
 
-import java.util.Calendar;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -22,19 +21,24 @@ import it.unimi.dsi.fastutil.floats.Float2FloatFunction;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.model.geom.ModelLayers;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.blockentity.ChestRenderer;
+import net.minecraft.client.renderer.blockentity.state.ChestRenderState;
+import net.minecraft.client.resources.model.sprite.SpriteId;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.AbstractChestBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.CopperChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.EnderChestBlockEntity;
 import net.minecraft.world.level.block.entity.LidBlockEntity;
+import net.minecraft.world.level.block.entity.TrappedChestBlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
 
 public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends AbstractBlockEntityVisual<T> implements SimpleDynamicVisual {
@@ -74,7 +78,7 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 		Block block = blockState.getBlock();
 		if (block instanceof AbstractChestBlock<?> chestBlock) {
 			ChestType chestType = blockState.hasProperty(ChestBlock.TYPE) ? blockState.getValue(ChestBlock.TYPE) : ChestType.SINGLE;
-			net.minecraft.client.resources.model.sprite.Material texture = Sheets.chooseMaterial(blockEntity, chestType, isChristmas());
+			SpriteId texture = Sheets.chooseSprite(getChestMaterial(blockEntity), chestType);
 			instances = InstanceTree.create(instancerProvider(), ModelTrees.of(LAYER_LOCATIONS.get(chestType), texture, MATERIAL));
 			lid = instances.childOrThrow("lid");
 			lock = instances.childOrThrow("lock");
@@ -95,9 +99,26 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 		}
 	}
 
-	private static boolean isChristmas() {
-		Calendar calendar = Calendar.getInstance();
-		return calendar.get(Calendar.MONTH) + 1 == 12 && calendar.get(Calendar.DATE) >= 24 && calendar.get(Calendar.DATE) <= 26;
+	private static ChestRenderState.ChestMaterialType getChestMaterial(BlockEntity blockEntity) {
+		Block block = blockEntity.getBlockState().getBlock();
+		if (block instanceof CopperChestBlock copperChest) {
+			return switch (copperChest.getState()) {
+				case UNAFFECTED -> ChestRenderState.ChestMaterialType.COPPER_UNAFFECTED;
+				case EXPOSED -> ChestRenderState.ChestMaterialType.COPPER_EXPOSED;
+				case WEATHERED -> ChestRenderState.ChestMaterialType.COPPER_WEATHERED;
+				case OXIDIZED -> ChestRenderState.ChestMaterialType.COPPER_OXIDIZED;
+			};
+		}
+		if (blockEntity instanceof EnderChestBlockEntity) {
+			return ChestRenderState.ChestMaterialType.ENDER_CHEST;
+		}
+		if (ChestRenderer.xmasTextures()) {
+			return ChestRenderState.ChestMaterialType.CHRISTMAS;
+		}
+		if (blockEntity instanceof TrappedChestBlockEntity) {
+			return ChestRenderState.ChestMaterialType.TRAPPED;
+		}
+		return ChestRenderState.ChestMaterialType.REGULAR;
 	}
 
 	private Matrix4f createInitialPose() {
@@ -200,8 +221,8 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 	private class BrightnessCombiner implements DoubleBlockCombiner.Combiner<BlockEntity, Integer> {
 		@Override
 		public Integer acceptDouble(BlockEntity first, BlockEntity second) {
-			int firstLight = LevelRenderer.getLightColor(first.getLevel(), first.getBlockPos());
-			int secondLight = LevelRenderer.getLightColor(second.getLevel(), second.getBlockPos());
+			int firstLight = LightCoordsUtil.getLightCoords(first.getLevel(), first.getBlockPos());
+			int secondLight = LightCoordsUtil.getLightCoords(second.getLevel(), second.getBlockPos());
 			int firstBlockLight = LightCoordsUtil.block(firstLight);
 			int secondBlockLight = LightCoordsUtil.block(secondLight);
 			int firstSkyLight = LightCoordsUtil.sky(firstLight);
@@ -211,12 +232,12 @@ public class ChestVisual<T extends BlockEntity & LidBlockEntity> extends Abstrac
 
 		@Override
 		public Integer acceptSingle(BlockEntity single) {
-			return LevelRenderer.getLightColor(single.getLevel(), single.getBlockPos());
+			return LightCoordsUtil.getLightCoords(single.getLevel(), single.getBlockPos());
 		}
 
 		@Override
 		public Integer acceptNone() {
-			return LevelRenderer.getLightColor(level, pos);
+			return LightCoordsUtil.getLightCoords(level, pos);
 		}
 	}
 }
