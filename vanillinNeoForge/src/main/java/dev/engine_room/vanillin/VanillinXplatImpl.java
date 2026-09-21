@@ -6,7 +6,7 @@ import net.neoforged.fml.loading.LoadingModList;
 public class VanillinXplatImpl implements VanillinXplat {
 	@Override
 	public boolean isDevelopmentEnvironment() {
-		return !FMLEnvironment.production;
+		return !FMLEnvironment.isProduction();
 	}
 
 	@Override

@@ -115,11 +115,11 @@ public class BlockDisplayVisual extends AbstractEntityVisual<Display.BlockDispla
 	}
 
 	private static float entityYRot(Entity entity, float partialTick) {
-		return Mth.rotLerp(partialTick, entity.yRotO, entity.yRot());
+		return Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
 	}
 
 	private static float entityXRot(Entity entity, float partialTick) {
-		return Mth.lerp(partialTick, entity.xRotO, entity.xRot());
+		return Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
 	}
 
 	@Override

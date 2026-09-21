@@ -32,6 +32,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.BlockEntityTypes;
 
 public class VanillaVisuals {
 	public static final Configurator CONFIGURATOR = new Configurator();
@@ -42,28 +43,28 @@ public class VanillaVisuals {
 	public static final boolean EXPERIMENTAL = VanillinXplat.INSTANCE.isDevelopmentEnvironment();
 
 	public static void init() {
-		builder(BlockEntityType.CHEST)
+		builder(BlockEntityTypes.CHEST)
 				.factory(ChestVisual::new)
 				.apply(STABLE);
-		builder(BlockEntityType.ENDER_CHEST)
+		builder(BlockEntityTypes.ENDER_CHEST)
 				.factory(ChestVisual::new)
 				.apply(STABLE);
-		builder(BlockEntityType.TRAPPED_CHEST)
+		builder(BlockEntityTypes.TRAPPED_CHEST)
 				.factory(ChestVisual::new)
 				.apply(STABLE);
 
-		builder(BlockEntityType.BELL)
+		builder(BlockEntityTypes.BELL)
 				.factory(BellVisual::new)
 				.apply(STABLE);
 
-		builder(BlockEntityType.SHULKER_BOX)
+		builder(BlockEntityTypes.SHULKER_BOX)
 				.factory(ShulkerBoxVisual::new)
 				.apply(STABLE);
 
-		builder(EntityType.BLOCK_DISPLAY).factory(BlockDisplayVisual::new)
+		builder(EntityTypes.BLOCK_DISPLAY).factory(BlockDisplayVisual::new)
 				.apply(STABLE);
 
-		composable(EntityType.ITEM_DISPLAY).with(element(VisualElements.ITEM_DISPLAY).build())
+		composable(EntityTypes.ITEM_DISPLAY).with(element(VisualElements.ITEM_DISPLAY).build())
 				.shouldVisualize((ctx, e) -> ItemDisplayVisual.shouldVisualize(e))
 				.build()
 				.skipVanillaRender(ItemDisplayVisual::shouldVisualize)
@@ -91,10 +92,10 @@ public class VanillaVisuals {
 				.skipVanillaRender(MinecartVisual::shouldSkipRender)
 				.apply(STABLE);
 
-		itemFrame(EntityType.ITEM_FRAME).apply(EXPERIMENTAL);
-		itemFrame(EntityType.GLOW_ITEM_FRAME).apply(EXPERIMENTAL);
+		itemFrame(EntityTypes.ITEM_FRAME).apply(EXPERIMENTAL);
+		itemFrame(EntityTypes.GLOW_ITEM_FRAME).apply(EXPERIMENTAL);
 
-		composable(EntityType.ITEM).apply(VanillaVisuals::commonElements)
+		composable(EntityTypes.ITEM).apply(VanillaVisuals::commonElements)
 				.with(element(VisualElements.FIRE).build())
 				.with(element(VisualElements.SHADOW).configure(new ShadowElement.Config(0.15f, 0.75f))
 						.build())
