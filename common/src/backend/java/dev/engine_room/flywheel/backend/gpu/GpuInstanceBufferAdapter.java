@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 
 import dev.engine_room.flywheel.api.instance.Instance;
 import dev.engine_room.flywheel.backend.engine.instancing.InstancedInstancer;
+import dev.engine_room.flywheel.backend.engine.direct.DirectInstancer;
 import dev.engine_room.flywheel.lib.memory.MemoryBlock;
 
 /**
@@ -47,6 +48,29 @@ public final class GpuInstanceBufferAdapter implements AutoCloseable {
 			if (count != expectedCount) {
 				throw new IllegalStateException("Instancer changed while its GPU snapshot was being prepared");
 			}
+			ByteBuffer data = block.asBuffer();
+			data.position(0);
+			data.limit(Math.toIntExact(byteCount));
+			instances.upload(data);
+			return new Snapshot(count, stride);
+		} finally {
+			block.free();
+		}
+	}
+
+	/** Upload a GL-free direct-instancer snapshot to the instance-rate stream. */
+	public <I extends Instance> Snapshot upload(DirectInstancer<I> instancer) {
+		ensureOpen();
+		Objects.requireNonNull(instancer, "instancer");
+		int stride = instancer.stride();
+		int expectedCount = instancer.instanceCount();
+		long byteCount = Math.multiplyExact((long) stride, expectedCount);
+		if (byteCount == 0) return new Snapshot(0, stride);
+		if (byteCount > Integer.MAX_VALUE) throw new IllegalArgumentException("Instance upload is too large for a CPU buffer");
+		MemoryBlock block = MemoryBlock.malloc(byteCount);
+		try {
+			int count = instancer.writeInstances(block);
+			if (count != expectedCount) throw new IllegalStateException("Direct instancer changed while its GPU snapshot was being prepared");
 			ByteBuffer data = block.asBuffer();
 			data.position(0);
 			data.limit(Math.toIntExact(byteCount));

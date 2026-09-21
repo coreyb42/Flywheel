@@ -20,13 +20,13 @@ import dev.engine_room.flywheel.lib.memory.MemoryBlock;
  * behaviour and serializes its native layout only when the direct manager is
  * preparing an upload.</p>
  */
-final class DirectInstancer<I extends Instance> implements Instancer<I> {
+public final class DirectInstancer<I extends Instance> implements Instancer<I> {
 	private final Object lock = new Object();
 	private final InstanceType<I> type;
 	private final ArrayList<I> instances = new ArrayList<>();
 	private final ArrayList<Handle<I>> handles = new ArrayList<>();
 
-	DirectInstancer(InstanceType<I> type) {
+	public DirectInstancer(InstanceType<I> type) {
 		this.type = type;
 	}
 
@@ -67,18 +67,18 @@ final class DirectInstancer<I extends Instance> implements Instancer<I> {
 		}
 	}
 
-	int instanceCount() {
+	public int instanceCount() {
 		synchronized (lock) {
 			return instances.size();
 		}
 	}
 
-	int stride() {
+	public int stride() {
 		return type.layout().byteSize();
 	}
 
 	/** Serialize a stable snapshot for an instance-rate vertex binding. */
-	int writeInstances(MemoryBlock destination) {
+	public int writeInstances(MemoryBlock destination) {
 		synchronized (lock) {
 			long required = Math.multiplyExact((long) stride(), instances.size());
 			if (destination.size() < required) {
